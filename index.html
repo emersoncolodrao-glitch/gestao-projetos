@@ -415,9 +415,6 @@ textarea.fc{resize:vertical;min-height:72px;}
   .projects-grid{grid-template-columns:1fr;}
   .pdh-top{flex-direction:column;}
 
-  /* KPIs dos indicadores: scroll horizontal — mantém 5 colunas no tamanho original */
-  .ind-kpis{grid-template-columns:repeat(5,minmax(100px,1fr));overflow-x:auto;-webkit-overflow-scrolling:touch;}
-
   /* Variações: scroll horizontal */
   .ind-vars{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
   .ind-var{flex:0 0 auto;min-width:90px;}
@@ -451,8 +448,6 @@ textarea.fc{resize:vertical;min-height:72px;}
   /* Stats: 2 colunas compactas */
   .stats-row{grid-template-columns:1fr 1fr;gap:10px;}
 
-  /* KPIs em telas pequenas: mantém scroll horizontal */
-  .ind-kpis{grid-template-columns:repeat(5,minmax(90px,1fr));}
   .ind-var{flex:0 0 auto;min-width:80px;}
 
   /* Topbar */
@@ -482,8 +477,6 @@ textarea.fc{resize:vertical;min-height:72px;}
   /* Stats: coluna única em telas muito pequenas */
   .stats-row{grid-template-columns:1fr;}
 
-  /* KPIs: mantém scroll horizontal */
-  .ind-kpis{grid-template-columns:repeat(5,minmax(80px,1fr));}
 
   .content{padding:8px;}
   .topbar{padding:0 8px;}
@@ -492,12 +485,14 @@ textarea.fc{resize:vertical;min-height:72px;}
 /* ===== INDICADORES PANEL ===== */
 .ind-grid{display:grid;grid-template-columns:1fr;gap:16px;}
 .ind-card{background:var(--white);border:1px solid var(--g200);border-radius:var(--rlg);box-shadow:var(--sh);overflow:hidden;}
+.ind-kpis-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--g100);}
+.ind-kpis-scroll .ind-kpis{border-bottom:none;}
 .ind-card-head{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px 14px;border-bottom:1px solid var(--g100);}
 .ind-card-title{font-size:15px;font-weight:700;color:var(--g800);}
 .ind-card-sub{font-size:12px;color:var(--g500);margin-top:2px;}
 .ind-card-actions{display:flex;gap:4px;flex-shrink:0;}
 /* KPIs numéricos */
-.ind-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-bottom:1px solid var(--g100);}
+.ind-kpis{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));min-width:550px;gap:0;border-bottom:1px solid var(--g100);}
 .ind-kpi{padding:10px 10px;text-align:center;border-right:1px solid var(--g100);}
 .ind-kpi:last-child{border-right:none;}
 .ind-kpi-label{font-size:9.5px;color:var(--g500);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -3448,57 +3443,61 @@ function renderIndicadores() {
       </div>
 
       <!-- Linha 1: MÊS -->
-      <div class="ind-row-label">📅 MÊS — ${mesLabel}</div>
-      <div class="ind-kpis">
-        <div class="ind-kpi">
-          <div class="ind-kpi-label">Previsto</div>
-          <div class="ind-kpi-value">${fmtVal(prev)}</div>
-        </div>
-        <div class="ind-kpi">
-          <div class="ind-kpi-label">Realizado</div>
-          <div class="ind-kpi-value" style="color:${realCol}">${fmtVal(real)}</div>
-        </div>
-        <div class="ind-kpi">
-          <div class="ind-kpi-label">Last Year</div>
-          <div class="ind-kpi-value" style="color:var(--g600);font-size:15px;">${fmtVal(lastYear)}</div>
-        </div>
-        <div class="ind-kpi">
-          <div class="ind-kpi-label">Real. × Prev.</div>
-          <div class="ind-kpi-value" style="color:${dPrev.col};font-size:15px;">${dPrev.txt}</div>
-          ${dPrev.pct ? `<div class="ind-kpi-unit" style="color:${dPrev.col};font-weight:700;">${dPrev.pct}</div>` : ''}
-        </div>
-        <div class="ind-kpi">
-          <div class="ind-kpi-label">VAR.YoY %</div>
-          <div class="ind-kpi-value" style="color:${dLY.col};font-size:15px;">${dLY.txt}</div>
-          ${dLY.pct ? `<div class="ind-kpi-unit" style="color:${dLY.col};font-weight:700;">${dLY.pct}</div>` : ''}
+      <div class="ind-kpis-scroll">
+        <div class="ind-row-label">📅 MÊS — ${mesLabel}</div>
+        <div class="ind-kpis">
+          <div class="ind-kpi">
+            <div class="ind-kpi-label">Previsto</div>
+            <div class="ind-kpi-value">${fmtVal(prev)}</div>
+          </div>
+          <div class="ind-kpi">
+            <div class="ind-kpi-label">Realizado</div>
+            <div class="ind-kpi-value" style="color:${realCol}">${fmtVal(real)}</div>
+          </div>
+          <div class="ind-kpi">
+            <div class="ind-kpi-label">Last Year</div>
+            <div class="ind-kpi-value" style="color:var(--g600);">${fmtVal(lastYear)}</div>
+          </div>
+          <div class="ind-kpi">
+            <div class="ind-kpi-label">Real. × Prev.</div>
+            <div class="ind-kpi-value" style="color:${dPrev.col};">${dPrev.txt}</div>
+            ${dPrev.pct ? `<div class="ind-kpi-unit" style="color:${dPrev.col};font-weight:700;">${dPrev.pct}</div>` : ''}
+          </div>
+          <div class="ind-kpi">
+            <div class="ind-kpi-label">VAR.YoY %</div>
+            <div class="ind-kpi-value" style="color:${dLY.col};">${dLY.txt}</div>
+            ${dLY.pct ? `<div class="ind-kpi-unit" style="color:${dLY.col};font-weight:700;">${dLY.pct}</div>` : ''}
+          </div>
         </div>
       </div>
 
       <!-- Linha 2: ANO acumulado (ocultado se ind.ocultarAcum) -->
       ${ind.ocultarAcum ? '' : `
-      <div class="ind-row-label" style="background:var(--g50);">📆 ANO — ${anoLabel}</div>
-      <div class="ind-kpis" style="background:var(--g50);">
-        <div class="ind-kpi" style="background:var(--g50);">
-          <div class="ind-kpi-label">Prev. Acum.</div>
-          <div class="ind-kpi-value" style="font-size:15px;">${acumPrevHasData ? fmtVal(acumPrev) : '—'}</div>
-        </div>
-        <div class="ind-kpi" style="background:var(--g50);">
-          <div class="ind-kpi-label">Real. Acum.</div>
-          <div class="ind-kpi-value" style="font-size:15px;color:${acumRealCol};">${acumRealHasData ? fmtVal(acumReal) : '—'}</div>
-        </div>
-        <div class="ind-kpi" style="background:var(--g50);">
-          <div class="ind-kpi-label">Last Year Acum.</div>
-          <div class="ind-kpi-value" style="font-size:15px;color:var(--g600);">${acumLYHasData ? fmtVal(acumLY) : '—'}</div>
-        </div>
-        <div class="ind-kpi" style="background:var(--g50);">
-          <div class="ind-kpi-label">Var. YoY  R$</div>
-          <div class="ind-kpi-value" style="font-size:14px;color:${dAcumPrev.col};">${dAcumPrev.txt}</div>
-          ${dAcumPrev.pct ? `<div class="ind-kpi-unit" style="color:${dAcumPrev.col};font-weight:700;">${dAcumPrev.pct}</div>` : ''}
-        </div>
-        <div class="ind-kpi" style="background:var(--g50);">
-          <div class="ind-kpi-label">Var. YoY %</div>
-          <div class="ind-kpi-value" style="font-size:14px;color:${dAcumLY.col};">${dAcumLY.txt}</div>
-          ${dAcumLY.pct ? `<div class="ind-kpi-unit" style="color:${dAcumLY.col};font-weight:700;">${dAcumLY.pct}</div>` : ''}
+      <div class="ind-kpis-scroll">
+        <div class="ind-row-label" style="background:var(--g50);">📆 ANO — ${anoLabel}</div>
+        <div class="ind-kpis" style="background:var(--g50);">
+          <div class="ind-kpi" style="background:var(--g50);">
+            <div class="ind-kpi-label">Prev. Acum.</div>
+            <div class="ind-kpi-value">${acumPrevHasData ? fmtVal(acumPrev) : '—'}</div>
+          </div>
+          <div class="ind-kpi" style="background:var(--g50);">
+            <div class="ind-kpi-label">Real. Acum.</div>
+            <div class="ind-kpi-value" style="color:${acumRealCol};">${acumRealHasData ? fmtVal(acumReal) : '—'}</div>
+          </div>
+          <div class="ind-kpi" style="background:var(--g50);">
+            <div class="ind-kpi-label">Last Year Acum.</div>
+            <div class="ind-kpi-value" style="color:var(--g600);">${acumLYHasData ? fmtVal(acumLY) : '—'}</div>
+          </div>
+          <div class="ind-kpi" style="background:var(--g50);">
+            <div class="ind-kpi-label">Var. YoY  R$</div>
+            <div class="ind-kpi-value" style="color:${dAcumPrev.col};">${dAcumPrev.txt}</div>
+            ${dAcumPrev.pct ? `<div class="ind-kpi-unit" style="color:${dAcumPrev.col};font-weight:700;">${dAcumPrev.pct}</div>` : ''}
+          </div>
+          <div class="ind-kpi" style="background:var(--g50);">
+            <div class="ind-kpi-label">Var. YoY %</div>
+            <div class="ind-kpi-value" style="color:${dAcumLY.col};">${dAcumLY.txt}</div>
+            ${dAcumLY.pct ? `<div class="ind-kpi-unit" style="color:${dAcumLY.col};font-weight:700;">${dAcumLY.pct}</div>` : ''}
+          </div>
         </div>
       </div>`}
 
@@ -3637,18 +3636,18 @@ function buildIndTable(indId, ano, unidade) {
       : { txt:'—', cls:'neu' });
     const colRealYoY = realYoY !== null ? '' : '';
     const acumCol = acum ? `
-      <td style="text-align:right;font-size:11px;color:var(--g600);">${prevYoY !== null ? fmtV(prevYoY) : '<span style="color:var(--g300)">—</span>'}</td>
-      <td style="text-align:right;font-size:11px;">${realYoY !== null ? getMedal(realYoY)+fmtV(realYoY) : '<span style="color:var(--g300)">—</span>'}</td>
-      <td style="text-align:right;font-size:11px;${dYoY.col};font-weight:600;">${dYoY.txt}</td>
-      <td style="text-align:right;border-right:2px solid var(--g300);"><span class="ind-var-val ${varYoY.cls}" style="font-size:11px;">${varYoY.txt}</span></td>` : '';
+      <td style="text-align:right;color:var(--g600);">${prevYoY !== null ? fmtV(prevYoY) : '<span style="color:var(--g300)">—</span>'}</td>
+      <td style="text-align:right;">${realYoY !== null ? getMedal(realYoY)+fmtV(realYoY) : '<span style="color:var(--g300)">—</span>'}</td>
+      <td style="text-align:right;${dYoY.col};font-weight:600;">${dYoY.txt}</td>
+      <td style="text-align:right;border-right:2px solid var(--g300);"><span class="ind-var-val ${varYoY.cls}">${varYoY.txt}</span></td>` : '';
 
     rows += `<tr>
       <td style="font-weight:600;color:var(--g700);white-space:nowrap;border-right:2px solid var(--g300);">${String(mes).padStart(2,'0')}/${ano}</td>
       <td style="text-align:right;">${prev !== null ? fmtV(prev) : '<span style="color:var(--g300)">—</span>'}</td>
       <td style="text-align:right;${col}">${real !== null ? getMedal(real)+fmtV(real) : '<span style="color:var(--g300)">—</span>'}</td>
-      <td style="text-align:right;font-size:11px;${dMes.col};font-weight:600;">${dMes.txt}</td>
-      <td style="text-align:right;"><span class="ind-var-val ${varPR.cls}" style="font-size:11px;">${varPR.txt}</span></td>
-      <td style="text-align:right;border-right:2px solid var(--g300);"><span class="ind-var-val ${varMoM.cls}" style="font-size:11px;">${varMoM.txt}</span></td>
+      <td style="text-align:right;${dMes.col};font-weight:600;">${dMes.txt}</td>
+      <td style="text-align:right;"><span class="ind-var-val ${varPR.cls}">${varPR.txt}</span></td>
+      <td style="text-align:right;border-right:2px solid var(--g300);"><span class="ind-var-val ${varMoM.cls}">${varMoM.txt}</span></td>
       ${acumCol}
       <td style="text-align:center;white-space:nowrap;">
         <button class="icon-btn" style="width:22px;height:22px;font-size:11px;" onclick="openMetaModal(${indId},${mes},${ano})" title="Lançar meta">✏️</button>
@@ -4289,16 +4288,16 @@ function renderAgmRelatorio() {
           </div>
           <div class="ind-kpi">
             <div class="ind-kpi-label">Last Year</div>
-            <div class="ind-kpi-value" style="color:var(--g600);font-size:15px;">${relMedalLY}${fmtV(lastYear)}</div>
+            <div class="ind-kpi-value" style="color:var(--g600);">${relMedalLY}${fmtV(lastYear)}</div>
           </div>
           <div class="ind-kpi">
             <div class="ind-kpi-label">Real. × Prev.</div>
-            <div class="ind-kpi-value" style="color:${dPrev.col};font-size:15px;">${dPrev.txt}</div>
+            <div class="ind-kpi-value" style="color:${dPrev.col};">${dPrev.txt}</div>
             ${dPrev.pct ? `<div class="ind-kpi-unit" style="color:${dPrev.col};font-weight:700;">${dPrev.pct}</div>` : ''}
           </div>
           <div class="ind-kpi">
             <div class="ind-kpi-label">VAR.YoY %</div>
-            <div class="ind-kpi-value" style="color:${dLY.col};font-size:15px;">${dLY.txt}</div>
+            <div class="ind-kpi-value" style="color:${dLY.col};">${dLY.txt}</div>
             ${dLY.pct ? `<div class="ind-kpi-unit" style="color:${dLY.col};font-weight:700;">${dLY.pct}</div>` : ''}
           </div>
         </div>
@@ -4308,24 +4307,24 @@ function renderAgmRelatorio() {
         <div class="ind-kpis" style="background:var(--g50);">
           <div class="ind-kpi" style="background:var(--g50);">
             <div class="ind-kpi-label">Prev. Acum.</div>
-            <div class="ind-kpi-value" style="font-size:15px;">${acPrevHas ? fmtV(acumPrev) : '—'}</div>
+            <div class="ind-kpi-value">${acPrevHas ? fmtV(acumPrev) : '—'}</div>
           </div>
           <div class="ind-kpi" style="background:var(--g50);">
             <div class="ind-kpi-label">Real. Acum.</div>
-            <div class="ind-kpi-value" style="font-size:15px;color:${acumRealCol};">${acRealHas ? fmtV(acumReal) : '—'}</div>
+            <div class="ind-kpi-value" style="color:${acumRealCol};">${acRealHas ? fmtV(acumReal) : '—'}</div>
           </div>
           <div class="ind-kpi" style="background:var(--g50);">
             <div class="ind-kpi-label">Last Year Acum.</div>
-            <div class="ind-kpi-value" style="font-size:15px;color:var(--g600);">${acLYHas ? fmtV(acumLY) : '—'}</div>
+            <div class="ind-kpi-value" style="color:var(--g600);">${acLYHas ? fmtV(acumLY) : '—'}</div>
           </div>
           <div class="ind-kpi" style="background:var(--g50);">
             <div class="ind-kpi-label">Var. YoY  R$</div>
-            <div class="ind-kpi-value" style="font-size:14px;color:${dAcumPrev.col};">${dAcumPrev.txt}</div>
+            <div class="ind-kpi-value" style="color:${dAcumPrev.col};">${dAcumPrev.txt}</div>
             ${dAcumPrev.pct ? `<div class="ind-kpi-unit" style="color:${dAcumPrev.col};font-weight:700;">${dAcumPrev.pct}</div>` : ''}
           </div>
           <div class="ind-kpi" style="background:var(--g50);">
             <div class="ind-kpi-label">Var. YoY %</div>
-            <div class="ind-kpi-value" style="font-size:14px;color:${dAcumLY.col};">${dAcumLY.txt}</div>
+            <div class="ind-kpi-value" style="color:${dAcumLY.col};">${dAcumLY.txt}</div>
             ${dAcumLY.pct ? `<div class="ind-kpi-unit" style="color:${dAcumLY.col};font-weight:700;">${dAcumLY.pct}</div>` : ''}
           </div>
         </div>
