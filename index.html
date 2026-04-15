@@ -415,27 +415,12 @@ textarea.fc{resize:vertical;min-height:72px;}
   .projects-grid{grid-template-columns:1fr;}
   .pdh-top{flex-direction:column;}
 
-  /* KPIs dos indicadores: 5 colunas → 3 */
-  .ind-kpis{grid-template-columns:repeat(3,1fr);}
+  /* KPIs dos indicadores: scroll horizontal — mantém 5 colunas no tamanho original */
+  .ind-kpis{grid-template-columns:repeat(5,minmax(100px,1fr));overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
-  /* Cards de indicadores — ajuste de tamanho automático */
-  .ind-card-head{padding:10px 12px 8px;flex-wrap:wrap;gap:6px;}
-  .ind-card-title{font-size:13px;}
-  .ind-card-sub{font-size:11px;}
-  .ind-card-actions{gap:3px;}
-  .ind-row-label{padding:3px 10px 2px;font-size:8px;letter-spacing:.03em;}
-  .ind-kpi{padding:6px 3px;}
-  .ind-kpi-label{font-size:8px;white-space:normal;line-height:1.2;letter-spacing:.02em;}
-  .ind-kpi-value{font-size:12px !important;line-height:1.1;}
-  .ind-kpi-unit{font-size:8px;margin-top:1px;}
-  .ind-chart{padding:8px 10px 6px;}
-  .ind-chart-toggle{padding:5px;font-size:10px;}
-
-  /* Variações dos indicadores: 3 por linha */
-  .ind-vars{flex-wrap:wrap;}
-  .ind-var{flex:0 0 33.33%;min-width:0;padding:6px 8px;}
-  .ind-var-label{font-size:9px;}
-  .ind-var-val{font-size:11px;}
+  /* Variações: scroll horizontal */
+  .ind-vars{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+  .ind-var{flex:0 0 auto;min-width:90px;}
 
   /* Modal */
   .modal{max-width:100%;margin:0;border-radius:var(--rlg) var(--rlg) 0 0;position:fixed;bottom:0;left:0;right:0;max-height:92vh;}
@@ -466,17 +451,9 @@ textarea.fc{resize:vertical;min-height:72px;}
   /* Stats: 2 colunas compactas */
   .stats-row{grid-template-columns:1fr 1fr;gap:10px;}
 
-  /* KPIs: 2 colunas */
-  .ind-kpis{grid-template-columns:repeat(2,1fr);}
-  .ind-var{flex:0 0 50%;}
-
-  /* Cards de indicadores — telas pequenas */
-  .ind-card-head{padding:8px 10px 6px;}
-  .ind-card-title{font-size:12px;}
-  .ind-kpi{padding:5px 2px;}
-  .ind-kpi-label{font-size:7.5px;}
-  .ind-kpi-value{font-size:11px !important;}
-  .ind-row-label{font-size:7.5px;padding:3px 8px 2px;}
+  /* KPIs em telas pequenas: mantém scroll horizontal */
+  .ind-kpis{grid-template-columns:repeat(5,minmax(90px,1fr));}
+  .ind-var{flex:0 0 auto;min-width:80px;}
 
   /* Topbar */
   .topbar{padding:0 10px;height:52px;}
@@ -505,8 +482,8 @@ textarea.fc{resize:vertical;min-height:72px;}
   /* Stats: coluna única em telas muito pequenas */
   .stats-row{grid-template-columns:1fr;}
 
-  /* KPIs: 2 colunas */
-  .ind-kpis{grid-template-columns:repeat(2,1fr);}
+  /* KPIs: mantém scroll horizontal */
+  .ind-kpis{grid-template-columns:repeat(5,minmax(80px,1fr));}
 
   .content{padding:8px;}
   .topbar{padding:0 8px;}
