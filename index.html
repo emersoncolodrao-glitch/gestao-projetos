@@ -417,9 +417,25 @@ textarea.fc{resize:vertical;min-height:72px;}
 
   /* KPIs dos indicadores: 5 colunas → 3 */
   .ind-kpis{grid-template-columns:repeat(3,1fr);}
-  /* Variações dos indicadores: quebra em 3 por linha */
+
+  /* Cards de indicadores — ajuste de tamanho automático */
+  .ind-card-head{padding:10px 12px 8px;flex-wrap:wrap;gap:6px;}
+  .ind-card-title{font-size:13px;}
+  .ind-card-sub{font-size:11px;}
+  .ind-card-actions{gap:3px;}
+  .ind-row-label{padding:3px 10px 2px;font-size:8px;letter-spacing:.03em;}
+  .ind-kpi{padding:6px 3px;}
+  .ind-kpi-label{font-size:8px;white-space:normal;line-height:1.2;letter-spacing:.02em;}
+  .ind-kpi-value{font-size:12px !important;line-height:1.1;}
+  .ind-kpi-unit{font-size:8px;margin-top:1px;}
+  .ind-chart{padding:8px 10px 6px;}
+  .ind-chart-toggle{padding:5px;font-size:10px;}
+
+  /* Variações dos indicadores: 3 por linha */
   .ind-vars{flex-wrap:wrap;}
-  .ind-var{flex:0 0 33.33%;min-width:0;}
+  .ind-var{flex:0 0 33.33%;min-width:0;padding:6px 8px;}
+  .ind-var-label{font-size:9px;}
+  .ind-var-val{font-size:11px;}
 
   /* Modal */
   .modal{max-width:100%;margin:0;border-radius:var(--rlg) var(--rlg) 0 0;position:fixed;bottom:0;left:0;right:0;max-height:92vh;}
@@ -453,6 +469,14 @@ textarea.fc{resize:vertical;min-height:72px;}
   /* KPIs: 2 colunas */
   .ind-kpis{grid-template-columns:repeat(2,1fr);}
   .ind-var{flex:0 0 50%;}
+
+  /* Cards de indicadores — telas pequenas */
+  .ind-card-head{padding:8px 10px 6px;}
+  .ind-card-title{font-size:12px;}
+  .ind-kpi{padding:5px 2px;}
+  .ind-kpi-label{font-size:7.5px;}
+  .ind-kpi-value{font-size:11px !important;}
+  .ind-row-label{font-size:7.5px;padding:3px 8px 2px;}
 
   /* Topbar */
   .topbar{padding:0 10px;height:52px;}
@@ -1083,6 +1107,10 @@ function fmtDate(s) {
 }
 function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+}
+// Versão sem casas decimais — usada no painel de indicadores
+function fmtBRLInt(v) {
+  return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0);
 }
 function initials(nome) {
   if (!nome) return '?';
@@ -3365,7 +3393,7 @@ function renderIndicadores() {
     // Formatação de valor
     const fmtVal = v => v === null ? '—'
       : (ind.unidade === 'R$'
-          ? fmtBRL(v)
+          ? fmtBRLInt(v)
           : (ind.unidade === '%'
               ? v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})
               : v.toLocaleString('pt-BR'))
@@ -3382,7 +3410,7 @@ function renderIndicadores() {
       const sign = diff > 0 ? '+' : '';
       let txt;
       if (ind.unidade === 'R$') {
-        txt = (diff >= 0 ? '+' : '−') + fmtBRL(Math.abs(diff));
+        txt = (diff >= 0 ? '+' : '−') + fmtBRLInt(Math.abs(diff));
       } else if (ind.unidade === '%') {
         txt = sign + diff.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' %';
       } else if (ind.unidade === 'un') {
@@ -3574,7 +3602,7 @@ function buildIndTable(indId, ano, unidade) {
   const acum  = !!ind?.acumulado;
   const meses = Array.from({length:12}, (_,i) => i+1);
   const fmtV  = v => v === null ? '<span style="color:var(--g300)">—</span>'
-    : (unidade === 'R$' ? fmtBRL(v) : (unidade === '%' ? v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) : v.toLocaleString('pt-BR')) + (unidade !== 'un' ? ' '+unidade : ''));
+    : (unidade === 'R$' ? fmtBRLInt(v) : (unidade === '%' ? v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) : v.toLocaleString('pt-BR')) + (unidade !== 'un' ? ' '+unidade : ''));
 
   // Diferença absoluta com sinal e cor
   const fmtD = (a, b) => {
@@ -3582,7 +3610,7 @@ function buildIndTable(indId, ano, unidade) {
     const diff = a - b;
     const sign = diff > 0 ? '+' : '';
     let txt;
-    if (unidade === 'R$')      txt = (diff >= 0 ? '+' : '−') + fmtBRL(Math.abs(diff));
+    if (unidade === 'R$')      txt = (diff >= 0 ? '+' : '−') + fmtBRLInt(Math.abs(diff));
     else if (unidade === '%')  txt = sign + diff.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' %';
     else if (unidade === 'un') txt = sign + diff.toLocaleString('pt-BR');
     else                       txt = sign + diff.toLocaleString('pt-BR') + ' ' + unidade;
@@ -4156,7 +4184,7 @@ function renderAgmRelatorio() {
 
       // Diferenças mês
       const fmtV = v => v === null ? '—'
-        : ind.unidade === 'R$' ? fmtBRL(v)
+        : ind.unidade === 'R$' ? fmtBRLInt(v)
         : (ind.unidade === '%'
             ? v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})
             : v.toLocaleString('pt-BR'))
@@ -4169,7 +4197,7 @@ function renderAgmRelatorio() {
         if (a === null || b === null) return { txt:'—', pct:'', col:'var(--g400)' };
         const diff = a - b;
         let txt;
-        if (ind.unidade === 'R$')      txt = (diff >= 0 ? '+' : '−') + fmtBRL(Math.abs(diff));
+        if (ind.unidade === 'R$')      txt = (diff >= 0 ? '+' : '−') + fmtBRLInt(Math.abs(diff));
         else if (ind.unidade === '%')  txt = (diff>0?'+':'') + diff.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' %';
         else if (ind.unidade === 'un') txt = (diff>0?'+':'') + diff.toLocaleString('pt-BR');
         else                           txt = (diff>0?'+':'') + diff.toLocaleString('pt-BR') + ' ' + ind.unidade;
@@ -6847,7 +6875,7 @@ function updateMetaPreview(indId) {
   const ano  = parseInt(document.getElementById('f_mano')?.value||0);
   const ind  = db.indicadores.find(i=>i.id===indId);
   const und  = ind?.unidade||'%';
-  const fmt  = v => und==='R$'?fmtBRL(v):v.toLocaleString('pt-BR')+(und!=='un'?' '+und:'');
+  const fmt  = v => und==='R$'?fmtBRLInt(v):v.toLocaleString('pt-BR')+(und!=='un'?' '+und:'');
 
   if (!mes||!ano||isNaN(p)) { prev.innerHTML='<span style="font-size:12px;color:var(--g400);">Preencha o mês, ano e meta prevista.</span>'; return; }
 
