@@ -1136,12 +1136,13 @@ function showLoading(on, txt='Conectando ao banco de dados...') {
    SIDEBAR
    ================================================================ */
 function toggleSidebar() {
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
   const sidebar  = document.getElementById('sidebar');
   const main     = document.querySelector('.main');
   const btn      = document.getElementById('sidebarToggleBtn');
   const icon     = document.getElementById('sidebarToggleIcon');
   if (isMobile) {
+    sidebar.classList.remove('collapsed');           // garante que 'collapsed' não interfere
     const isOpen = sidebar.classList.toggle('open');
     document.getElementById('mobOverlay').classList.toggle('show', isOpen);
     const toggleBtn = document.getElementById('sidebarToggleBtn');
