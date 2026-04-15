@@ -386,11 +386,18 @@ textarea.fc{resize:vertical;min-height:72px;}
 /* ===== RESPONSIVE ===== */
 @media(max-width:768px){
   /* Sidebar */
-  .sidebar{transform:translateX(-100%);}
-  .sidebar.open{transform:translateX(0);}
+  .sidebar{transform:translateX(-100%);z-index:400;}
+  .sidebar.open{transform:translateX(0);box-shadow:4px 0 24px rgba(0,0,0,.35);}
   .sidebar.collapsed{transform:translateX(-100%);}
+  .mob-overlay{z-index:350;}
   .mob-overlay.show{display:block;}
   .main{margin-left:0 !important;}
+
+  /* Hamburger: trocar SVG de desktop por ☰ claro no mobile */
+  #sidebarToggleIcon{display:none;}
+  #sidebarToggleBtn{width:40px;height:40px;background:var(--g100);border-radius:var(--r);color:var(--g700);}
+  #sidebarToggleBtn::before{content:'☰';font-size:20px;line-height:1;}
+  #sidebarToggleBtn[data-open="1"]::before{content:'✕';font-size:18px;}
 
   /* Topbar */
   .topbar{padding:0 12px;height:56px;}
@@ -1135,8 +1142,11 @@ function toggleSidebar() {
   const btn      = document.getElementById('sidebarToggleBtn');
   const icon     = document.getElementById('sidebarToggleIcon');
   if (isMobile) {
-    sidebar.classList.toggle('open');
-    document.getElementById('mobOverlay').classList.toggle('show');
+    const isOpen = sidebar.classList.toggle('open');
+    document.getElementById('mobOverlay').classList.toggle('show', isOpen);
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    if (toggleBtn) toggleBtn.style.setProperty('--mob-icon', isOpen ? '"✕"' : '"☰"');
+    if (btn) btn.setAttribute('data-open', isOpen ? '1' : '');
   } else {
     const collapsed = sidebar.classList.toggle('collapsed');
     main.classList.toggle('sb-collapsed', collapsed);
@@ -1161,6 +1171,8 @@ function toggleSidebar() {
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('mobOverlay').classList.remove('show');
+  const btn = document.getElementById('sidebarToggleBtn');
+  if (btn) btn.removeAttribute('data-open');
 }
 function updateSidebarUser() {
   if (!currentProfile) return;
