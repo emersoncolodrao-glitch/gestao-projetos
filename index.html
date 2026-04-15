@@ -1006,6 +1006,7 @@ async function loadMyPermissions() {
     const projRows = rows.filter(r => r.resource_type === 'projeto');
     const indRows  = rows.filter(r => r.resource_type === 'indicador');
     const cadRow   = rows.find(r  => r.resource_type === 'cadastros');
+    const relRow   = rows.find(r  => r.resource_type === 'agmrelatorio');
 
     // Mapa de abas por projeto: pid → Set<'tarefas'|'lista'|'cronograma'|'custos'>
     const TAB_MAP = { proj_kanban:'tarefas', proj_lista:'lista', proj_cronograma:'cronograma', proj_custos:'custos' };
@@ -1020,10 +1021,11 @@ async function loadMyPermissions() {
     // Sempre usa Set (jamais null) quando o usuário está configurado:
     // Set vazio = sem acesso a nenhum item do tipo; Set preenchido = acesso apenas aos ids contidos
     myPermissions = {
-      projetos:    new Set(projRows.map(r => r.resource_id)),
-      projetoTabs: tabRows.length ? projetoTabs : null,
-      indicadores: new Set(indRows.map(r  => r.resource_id)),
-      cadastros:   !!cadRow,
+      projetos:      new Set(projRows.map(r => r.resource_id)),
+      projetoTabs:   tabRows.length ? projetoTabs : null,
+      indicadores:   new Set(indRows.map(r  => r.resource_id)),
+      cadastros:     !!cadRow,
+      agmrelatorio:  !!relRow,
     };
   } catch(e) {
     console.warn('Erro ao carregar permissões:', e.message);
@@ -1034,7 +1036,8 @@ async function loadMyPermissions() {
 // id = null → verifica se tem acesso a pelo menos um item do tipo (usado para mostrar/ocultar nav)
 function canSee(type, id = null) {
   if (!myPermissions) return true; // sem restrições
-  if (type === 'cadastros') return myPermissions.cadastros;
+  if (type === 'cadastros')    return myPermissions.cadastros;
+  if (type === 'agmrelatorio') return myPermissions.agmrelatorio;
   const set = type === 'projeto' ? myPermissions.projetos : myPermissions.indicadores;
   if (set == null) return true; // tipo não configurado (nunca deve ocorrer após fix) → acesso total
   if (id === null) return set.size > 0; // sem id: basta ter ao menos um
@@ -1056,9 +1059,11 @@ function canSeeTab(pid, tab) {
 function applyNavPermissions() {
   const navInd  = document.getElementById('nav-indicadores');
   const navAnot = document.getElementById('nav-anotacoes');
+  const navRel  = document.getElementById('nav-agmrelatorio');
   const navSet  = document.getElementById('nav-settings');
-  if (navInd)  navInd.style.display  = canSee('indicador') ? '' : 'none';
-  if (navAnot) navAnot.style.display = canSee('indicador') ? '' : 'none';
+  if (navInd)  navInd.style.display  = canSee('indicador')    ? '' : 'none';
+  if (navAnot) navAnot.style.display = canSee('indicador')    ? '' : 'none';
+  if (navRel)  navRel.style.display  = canSee('agmrelatorio') ? '' : 'none';
   if (navSet)  navSet.style.display  = (currentProfile?.is_admin || canSee('cadastros')) ? '' : 'none';
 }
 
@@ -5003,6 +5008,7 @@ async function openPermissionsModal(userId, userName, isNewUser = false) {
     const projPerms    = existing.filter(r => r.resource_type === 'projeto').map(r => r.resource_id);
     const indPerms     = existing.filter(r => r.resource_type === 'indicador').map(r => r.resource_id);
     const hasCad       = existing.some(r => r.resource_type === 'cadastros');
+    const hasRel       = existing.some(r => r.resource_type === 'agmrelatorio');
 
     // Tab perms: Map<pid, Set<type>>
     const tabExisting = {};
@@ -5154,6 +5160,14 @@ async function openPermissionsModal(userId, userName, isNewUser = false) {
         </div>
       </div>
 
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--g700);margin-bottom:8px;">📄 Relatório AGM</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;padding:8px 10px;border:1px solid var(--g100);border-radius:var(--r);">
+          <input type="checkbox" id="perm_agmrelatorio" ${hasRel?'checked':''} style="accent-color:var(--primary);width:14px;height:14px;">
+          <span style="color:var(--g800);">Acesso ao Relatório AGM</span>
+        </label>
+      </div>
+
       <div style="margin-bottom:8px;">
         <div style="font-size:12px;font-weight:700;color:var(--g700);margin-bottom:8px;">⚙️ Configurações (Cadastros)</div>
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;padding:8px 10px;border:1px solid var(--g100);border-radius:var(--r);">
@@ -5219,7 +5233,8 @@ async function savePermissions(userId) {
   try {
     const projIds = [...document.querySelectorAll('input[data-type="projeto"]:checked')].map(el => +el.dataset.id);
     const indIds  = [...document.querySelectorAll('input[data-type="indicador"]:checked')].map(el => +el.dataset.id);
-    const cad     = document.getElementById('perm_cadastros')?.checked || false;
+    const cad     = document.getElementById('perm_cadastros')?.checked    || false;
+    const rel     = document.getElementById('perm_agmrelatorio')?.checked || false;
 
     // Tab permissions: por project type
     const tabRows = [];
@@ -5238,7 +5253,7 @@ async function savePermissions(userId) {
     if (!delRes.ok && delRes.status !== 404) throw new Error(await delRes.text());
 
     // Acesso total: não salva nada (ausência de sentinela = irrestrito)
-    if (allProj && allTabs && allInd && cad) {
+    if (allProj && allTabs && allInd && cad && rel) {
       toast('Permissões salvas — acesso total liberado.');
       closeModal();
       loadAndRenderUsers();
@@ -5250,7 +5265,8 @@ async function savePermissions(userId) {
     projIds.forEach(id => rows.push({ user_id:userId, resource_type:'projeto',   resource_id:id }));
     indIds.forEach(id  => rows.push({ user_id:userId, resource_type:'indicador', resource_id:id }));
     tabRows.forEach(r  => rows.push(r));
-    if (cad)      rows.push({ user_id:userId, resource_type:'cadastros', resource_id:null });
+    if (rel)      rows.push({ user_id:userId, resource_type:'agmrelatorio', resource_id:null });
+    if (cad)      rows.push({ user_id:userId, resource_type:'cadastros',    resource_id:null });
 
     if (rows.length) {
       const insRes = await fetch(`${REST}/user_permissions`, {
