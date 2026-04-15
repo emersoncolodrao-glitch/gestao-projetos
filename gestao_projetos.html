@@ -168,7 +168,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tag-colors{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 4px;}
 
 /* ===== TASK GRID ===== */
-.tg-wrap{background:var(--white);border-radius:var(--rlg);border:1px solid var(--g100);box-shadow:var(--sh);overflow:hidden;}
+.tg-wrap{background:var(--white);border-radius:var(--rlg);border:1px solid var(--g100);box-shadow:var(--sh);overflow:hidden;overflow-x:auto;}
 .tg-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--g100);flex-wrap:wrap;gap:8px;}
 .tg-filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .tg-filter-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--primary-lt);color:var(--primary);border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:none;white-space:nowrap;}
@@ -265,7 +265,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .cost-sum-card{background:var(--white);border-radius:var(--r);padding:16px;border:1px solid var(--g100);box-shadow:0 1px 2px rgba(0,0,0,.05);}
 .cost-sum-label{font-size:10px;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:4px;}
 .cost-sum-value{font-size:20px;font-weight:800;}
-.table-wrap{background:var(--white);border-radius:var(--rlg);border:1px solid var(--g100);overflow:hidden;box-shadow:var(--sh);}
+.table-wrap{background:var(--white);border-radius:var(--rlg);border:1px solid var(--g100);overflow:hidden;overflow-x:auto;box-shadow:var(--sh);}
 table{width:100%;border-collapse:collapse;}
 th{background:var(--g50);padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--g500);border-bottom:1px solid var(--g200);white-space:nowrap;}
 td{padding:11px 16px;font-size:13px;color:var(--g700);border-bottom:1px solid var(--g100);}
@@ -385,20 +385,101 @@ textarea.fc{resize:vertical;min-height:72px;}
 
 /* ===== RESPONSIVE ===== */
 @media(max-width:768px){
+  /* Sidebar */
   .sidebar{transform:translateX(-100%);}
   .sidebar.open{transform:translateX(0);}
   .sidebar.collapsed{transform:translateX(-100%);}
   .mob-overlay.show{display:block;}
   .main{margin-left:0 !important;}
+
+  /* Topbar */
+  .topbar{padding:0 12px;height:56px;}
+  .page-title{font-size:15px;}
+  .db-badge{display:none;}
+
+  /* Content */
+  .content{padding:12px;}
+
+  /* Grids */
   .stats-row{grid-template-columns:1fr 1fr;}
   .kanban{grid-template-columns:1fr;}
   .form-row{grid-template-columns:1fr;}
   .costs-summary{grid-template-columns:1fr;}
   .projects-grid{grid-template-columns:1fr;}
   .pdh-top{flex-direction:column;}
-  .content{padding:16px;}
+
+  /* KPIs dos indicadores: 5 colunas → 3 */
+  .ind-kpis{grid-template-columns:repeat(3,1fr);}
+  /* Variações dos indicadores: quebra em 3 por linha */
+  .ind-vars{flex-wrap:wrap;}
+  .ind-var{flex:0 0 33.33%;min-width:0;}
+
+  /* Modal */
+  .modal{max-width:100%;margin:0;border-radius:var(--rlg) var(--rlg) 0 0;position:fixed;bottom:0;left:0;right:0;max-height:92vh;}
+  .overlay{align-items:flex-end;padding:0;}
+  .modal-drag-bar{display:flex;}
+  .modal-body{padding:14px 16px;}
+  .modal-foot{padding:12px 16px;}
+
+  /* Tabelas: garantir scroll horizontal */
+  .table-wrap,
+  .tg-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* AGM KPIs */
+  .agmrel-kpis{grid-template-columns:repeat(2,1fr);}
+
+  /* Botões: levemente menores */
+  .btn{padding:7px 12px;font-size:12px;}
+
+  /* Toolbar das tabelas */
+  .tg-toolbar{padding:10px 12px;}
+
+  /* PDH meta */
+  .pdh-meta{gap:12px;}
+  .pdh-name{font-size:17px;}
 }
-@media(max-width:480px){.stats-row{grid-template-columns:1fr 1fr;gap:10px;}}
+
+@media(max-width:480px){
+  /* Stats: 2 colunas compactas */
+  .stats-row{grid-template-columns:1fr 1fr;gap:10px;}
+
+  /* KPIs: 2 colunas */
+  .ind-kpis{grid-template-columns:repeat(2,1fr);}
+  .ind-var{flex:0 0 50%;}
+
+  /* Topbar */
+  .topbar{padding:0 10px;height:52px;}
+  .page-title{font-size:14px;}
+  .page-sub{display:none;}
+
+  /* Content */
+  .content{padding:10px;}
+
+  /* Modal ocupa quase a tela toda */
+  .modal{max-height:96vh;}
+
+  /* Cards de stat menores */
+  .stat-card{padding:12px 14px;}
+  .stat-val{font-size:22px;}
+
+  /* Botões menores */
+  .btn{padding:6px 10px;font-size:12px;}
+  .btn-sm{padding:4px 8px;font-size:11px;}
+
+  /* Chips de filtro */
+  .tg-filter-chip{padding:3px 8px;font-size:10px;}
+}
+
+@media(max-width:360px){
+  /* Stats: coluna única em telas muito pequenas */
+  .stats-row{grid-template-columns:1fr;}
+
+  /* KPIs: 2 colunas */
+  .ind-kpis{grid-template-columns:repeat(2,1fr);}
+
+  .content{padding:8px;}
+  .topbar{padding:0 8px;}
+}
 
 /* ===== INDICADORES PANEL ===== */
 .ind-grid{display:grid;grid-template-columns:1fr;gap:16px;}
