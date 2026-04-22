@@ -639,6 +639,48 @@ textarea.fc{resize:vertical;min-height:72px;}
 }
 .agmrel-print-header{display:none;}
 
+/* ===== MAPA ESTRATÉGICO ===== */
+.smap-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.smap-wrap{position:relative;background:var(--white);border:1px solid var(--g200);border-radius:var(--rlg);box-shadow:var(--sh);overflow:hidden;}
+.smap-persp{display:flex;min-height:120px;border-bottom:1px solid var(--g200);}
+.smap-persp:last-child{border-bottom:none;}
+.smap-persp-lbl{width:68px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 0;}
+.smap-persp-tag{font-size:15px;font-weight:900;color:white;letter-spacing:.02em;}
+.smap-persp-name{font-size:9px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.08em;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);white-space:nowrap;}
+.smap-persp-nodes{flex:1;display:flex;flex-wrap:wrap;gap:12px;padding:14px 16px;align-items:flex-start;}
+/* Card de indicador */
+.smap-node{background:white;border:1px solid var(--g200);border-left:4px solid var(--primary);border-radius:10px;cursor:pointer;width:200px;flex-shrink:0;transition:box-shadow .15s,transform .15s;position:relative;z-index:2;user-select:none;overflow:hidden;}
+.smap-node:hover{box-shadow:0 6px 18px rgba(0,0,0,.14);transform:translateY(-2px);}
+.smap-node.smap-node-active{box-shadow:0 0 0 3px var(--primary);}
+/* Tag do objetivo estratégico (cabeçalho do card) */
+.smap-obj-tag{font-size:9.5px;font-weight:700;padding:4px 10px;border-bottom:1px solid var(--g100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;border-radius:0;}
+/* Corpo do card */
+.smap-node-head{display:flex;align-items:flex-start;gap:7px;padding:9px 11px 7px;}
+.smap-ind-status-ico{font-size:16px;flex-shrink:0;margin-top:1px;}
+.smap-node-title{font-size:11px;font-weight:800;color:var(--g800);line-height:1.35;}
+/* Valores BGD / Real */
+.smap-node-vals{padding:0 11px 9px;display:flex;flex-direction:column;gap:3px;}
+.smap-val-row{display:flex;align-items:baseline;gap:5px;}
+.smap-val-lbl{font-size:9px;font-weight:800;text-transform:uppercase;color:var(--g400);letter-spacing:.05em;width:28px;flex-shrink:0;}
+.smap-val-num{font-size:12px;font-weight:700;color:var(--g700);}
+/* Arrows */
+.smap-arrows{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:1;}
+.smap-empty{text-align:center;padding:60px 20px;color:var(--g400);}
+/* Detail panel */
+.smap-panel{background:white;border:1px solid var(--g200);border-radius:var(--rlg);box-shadow:var(--sh);padding:18px 20px;margin-top:12px;}
+/* Config */
+.smap-cfg-persp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--g100);}
+.smap-cfg-obj-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--g100);}
+/* Mobile */
+@media(max-width:768px){
+  .smap-persp-lbl{width:48px;}
+  .smap-persp-tag{font-size:12px;}
+  .smap-node{width:165px;}
+  .smap-node-title{font-size:10px;}
+  .smap-val-num{font-size:11px;}
+  .smap-persp-nodes{padding:10px;}
+}
+
 </style>
 </head>
 <body>
@@ -681,6 +723,9 @@ textarea.fc{resize:vertical;min-height:72px;}
           <!-- menu Comentários oculto temporariamente -->
           <div class="nav-item" id="nav-agmrelatorio" onclick="navigateTo('agmrelatorio')">
             <span class="nav-icon">📄</span> Relatório
+          </div>
+          <div class="nav-item" id="nav-mapaestrategico" onclick="navigateTo('mapaestrategico')">
+            <span class="nav-icon">🗺️</span> Mapa Estratégico
           </div>
         </div>
       </div>
@@ -737,6 +782,12 @@ const REST = 'https://ikmjoddgmshybdxyfttg.supabase.co/rest/v1';
 const AUTH = 'https://ikmjoddgmshybdxyfttg.supabase.co/auth/v1';
 const KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbWpvZGRnbXNoeWJkeHlmdHRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTQ5NjEsImV4cCI6MjA5MDQ5MDk2MX0.WjZV5ID_WHBLVIYeukhclRomu3og6mOHZprRovGyj-E';
 const H    = { 'apikey':KEY, 'Authorization':`Bearer ${KEY}`, 'Content-Type':'application/json' };
+// Atualiza o token de autorização nas requisições à API.
+// Após login: usa o JWT do usuário (respeita RLS).
+// Após logout: volta para a chave anon.
+function setAuthToken(token) {
+  H['Authorization'] = token ? `Bearer ${token}` : `Bearer ${KEY}`;
+}
 
 /* ================================================================
    STATE
@@ -790,6 +841,12 @@ let indMesFiltro    = window._indMesDefault; // 1-12 (mês anterior ao atual)
 let indObjFiltro    = '';   // '' = todos | id do objetivo estratégico
 let indRespFiltro   = '';   // '' = todos | id do responsável
 
+// Filtros do Mapa Estratégico
+let smapAnoFiltro  = window._indAnoDefault;
+let smapMesFiltro  = window._indMesDefault;
+let smapObjFiltro  = '';
+let smapRespFiltro = '';
+
 // Filtros do grid de Anotações
 let anotFiltroStatus = '';  // '' | 'Aberta' | 'Em Andamento' | 'Concluída'
 let anotFiltroIndId  = '';  // '' | indicadorId
@@ -811,6 +868,7 @@ const fromDB = {
   projeto:     p=>({ id:p.id, nome:p.nome, descricao:p.descricao||'', status:p.status,
                       icone:p.icone||'📁',
                       empresaId:p.empresa_id||null,
+                      controlaCusto: p.controla_custo !== false,
                       responsavelId:p.responsavel_id, dataInicio:p.data_inicio, dataFim:p.data_fim }),
   tarefa:      t=>({ id:t.id, nome:t.nome, descricao:t.descricao||'', projetoId:t.projeto_id,
                       responsavelId:t.responsavel_id, status:t.status,
@@ -847,6 +905,7 @@ const toDB = {
   projeto:     d=>({ nome:d.nome, descricao:d.descricao||null, status:d.status,
                       icone:d.icone||'📁',
                       empresa_id:d.empresaId||null,
+                      controla_custo: d.controlaCusto !== false,
                       responsavel_id:d.responsavelId||null,
                       data_inicio:d.dataInicio||null, data_fim:d.dataFim||null }),
   tarefa:      d=>({ nome:d.nome, descricao:d.descricao||null, projeto_id:d.projetoId,
@@ -972,7 +1031,7 @@ async function uploadAnexo(tid, file) {
   const mime = file.type || 'application/octet-stream';
   const upRes = await fetch(`${STORAGE}/object/${BUCKET}/${path}`, {
     method:'POST',
-    headers:{ 'Authorization':`Bearer ${KEY}`, 'Content-Type':mime, 'x-upsert':'true' },
+    headers:{ 'Authorization':H['Authorization'], 'Content-Type':mime, 'x-upsert':'true' },
     body: file
   });
   if (!upRes.ok) {
@@ -991,7 +1050,7 @@ async function uploadAnexo(tid, file) {
 }
 async function deleteAnexo(anexoId, url) {
   const path = url.replace(`${STORAGE}/object/public/tarefa-anexos/`,'');
-  await fetch(`${STORAGE}/object/tarefa-anexos/${path}`, { method:'DELETE', headers:{ 'Authorization':`Bearer ${KEY}` }});
+  await fetch(`${STORAGE}/object/tarefa-anexos/${path}`, { method:'DELETE', headers:{ 'Authorization':H['Authorization'] }});
   await fetch(`${REST}/tarefa_anexos?id=eq.${anexoId}`, { method:'DELETE', headers:H });
   db.tarefaAnexos = db.tarefaAnexos.filter(a=>a.id!==anexoId);
 }
@@ -1272,7 +1331,7 @@ function updateSidebarUser() {
    NAVIGATION
    ================================================================ */
 // Itens que pertencem ao grupo AGM
-const NAV_GROUP_AGM = ['indicadores','anotacoes','agmrelatorio'];
+const NAV_GROUP_AGM = ['indicadores','anotacoes','agmrelatorio','mapaestrategico'];
 
 function toggleNavGroup(group) {
   const header = document.getElementById(`nav-group-${group}-header`);
@@ -1310,6 +1369,7 @@ function render() {
   else if (view==='indicadores') renderIndicadores();
   else if (view==='anotacoes')  renderAnotacoes();
   else if (view==='agmrelatorio') renderAgmRelatorio();
+  else if (view==='mapaestrategico') renderMapaEstrategico();
   else if (view==='usuarios')   renderUsuarios();
 }
 
@@ -1443,6 +1503,7 @@ async function doLogin() {
   btn.disabled=true; btn.textContent='Entrando...';
   try {
     const sess    = await authLogin(email, pass);
+    setAuthToken(sess.access_token);
     const profile = await getProfile(sess.user.id);
     if (!profile) throw new Error('Perfil não encontrado. Contacte o administrador.');
     saveSession({ access_token:sess.access_token, user_id:sess.user.id, email:sess.user.email });
@@ -1505,6 +1566,7 @@ async function logout() {
   const sess = loadSession();
   if (sess?.access_token) await authLogoutAPI(sess.access_token);
   clearSession();
+  setAuthToken(null);
   currentUser=null; currentProfile=null;
   document.getElementById('sbUser').style.display='none';
   document.getElementById('pendingScreen').style.display='none';
@@ -2358,11 +2420,12 @@ function renderProject(pid) {
     </div>
   </div>
 
+  ${(projTab==='custos' && p.controlaCusto===false) ? (()=>{projTab='tarefas';})() : ''}
   <div class="tabs">
     ${canSeeTab(pid,'tarefas')     ? `<div class="tab ${projTab==='tarefas'?'active':''}"     onclick="switchTab('tarefas')">📋 Kanban</div>` : ''}
     ${canSeeTab(pid,'lista')       ? `<div class="tab ${projTab==='lista'?'active':''}"       onclick="switchTab('lista')">📊 Lista</div>` : ''}
     ${canSeeTab(pid,'cronograma')  ? `<div class="tab ${projTab==='cronograma'?'active':''}"  onclick="switchTab('cronograma')">📅 Cronograma</div>` : ''}
-    ${canSeeTab(pid,'custos')      ? `<div class="tab ${projTab==='custos'?'active':''}"      onclick="switchTab('custos')">💰 Custos</div>` : ''}
+    ${(canSeeTab(pid,'custos') && p.controlaCusto!==false) ? `<div class="tab ${projTab==='custos'?'active':''}" onclick="switchTab('custos')">💰 Custos</div>` : ''}
   </div>
 
   <div id="tabContent">
@@ -3494,7 +3557,7 @@ function renderIndicadores() {
     const anoLabel = `Jan–${MES_NOMES[mesRef-1]}/${anoRef}`;
 
     return `
-    <div class="ind-card">
+    <div class="ind-card" id="ind-card-${ind.id}">
       <div class="ind-card-head">
         <div>
           <div class="ind-card-title" style="display:flex;align-items:center;gap:6px;">
@@ -3767,6 +3830,562 @@ function buildIndTable(indId, ano, unidade) {
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+/* ================================================================
+   MAPA ESTRATÉGICO
+   ================================================================ */
+const SMAP_KEY = 'smap_cfg_v2';   // v2: indicadores como cards
+const SMAP_PERSP_DEFAULTS = [
+  { id:'EF', tag:'EF', label:'Perspectiva Financeira',  cor:'#1e3a8a' },
+  { id:'MI', tag:'MI', label:'Mercado & Clientes',      cor:'#064e3b' },
+  { id:'TP', tag:'TP', label:'Processos Internos',      cor:'#4c1d95' },
+  { id:'PH', tag:'PH', label:'Pessoas & Aprendizado',   cor:'#831843' },
+];
+
+function getSmapCfg() {
+  try {
+    const raw = localStorage.getItem(SMAP_KEY);
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      // Garante que perspectivas removidas do default sejam excluídas do config salvo
+      const validIds = new Set(SMAP_PERSP_DEFAULTS.map(p => p.id));
+      if (cfg.perspectivas) cfg.perspectivas = cfg.perspectivas.filter(p => validIds.has(p.id));
+      if (!cfg.perspectivas?.length) cfg.perspectivas = JSON.parse(JSON.stringify(SMAP_PERSP_DEFAULTS));
+      return { nodes:{}, conexoes:[], ...cfg };
+    }
+  } catch(e) {}
+  return { perspectivas: JSON.parse(JSON.stringify(SMAP_PERSP_DEFAULTS)), nodes:{}, conexoes:[] };
+}
+function saveSmapCfg(cfg) { try { localStorage.setItem(SMAP_KEY, JSON.stringify(cfg)); } catch(e){} }
+
+function setSmapAno(v)  { smapAnoFiltro  = +v;  renderMapaEstrategico(); }
+function setSmapMes(v)  { smapMesFiltro  = +v;  renderMapaEstrategico(); }
+function setSmapObj(v)  { smapObjFiltro  = v;   renderMapaEstrategico(); }
+function setSmapResp(v) { smapRespFiltro = v;   renderMapaEstrategico(); }
+
+function renderMapaEstrategico() {
+  document.getElementById('pageTitle').textContent = '🗺️ Mapa Estratégico';
+  document.getElementById('pageSub').textContent   = 'Indicadores posicionados por perspectiva';
+
+  const cfg  = getSmapCfg();
+  const now  = new Date();
+
+  // ── Ano/mês de referência ──────────────────────────────
+  const anosDisp = [...new Set(db.indicadorMetas.map(m => m.ano))].sort((a,b) => b-a);
+  const anoAtual = now.getFullYear();
+  if (!anosDisp.includes(anoAtual)) anosDisp.unshift(anoAtual);
+  if (!smapAnoFiltro || !anosDisp.includes(smapAnoFiltro)) smapAnoFiltro = anosDisp[0] || anoAtual;
+
+  // Mês de referência: filtro ou último realizado
+  let mesRef, anoRef;
+  if (smapMesFiltro) {
+    mesRef = smapMesFiltro;
+    anoRef = smapAnoFiltro;
+  } else {
+    const ultimo = db.indicadorMetas
+      .filter(m => m.metaRealizada !== null && m.ano === smapAnoFiltro)
+      .sort((a, b) => b.mes - a.mes)[0];
+    mesRef = ultimo ? ultimo.mes : now.getMonth() + 1;
+    anoRef = smapAnoFiltro;
+  }
+
+  // ── Opções dos selects ─────────────────────────────────
+  const anoOpts = anosDisp.map(a =>
+    `<option value="${a}" ${smapAnoFiltro===a?'selected':''}>${a}</option>`).join('');
+
+  const mesOpts = MES_NOMES_FULL.map((m, i) =>
+    `<option value="${i+1}" ${smapMesFiltro===i+1?'selected':''}>${m}</option>`).join('');
+
+  const objOpts = db.objetivosEstrategicos.map(o =>
+    `<option value="${o.id}" ${smapObjFiltro==o.id?'selected':''}>${esc(o.nome)}</option>`).join('');
+
+  const respOpts = db.responsaveis
+    .filter(r => db.indicadores.some(i => i.responsavelId === r.id))
+    .sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR'))
+    .map(r => `<option value="${r.id}" ${smapRespFiltro==r.id?'selected':''}>${esc(r.nome)}</option>`).join('');
+
+  // ── Toolbar de filtros (mesmo estilo dos indicadores) ──
+  const toolbar = `
+  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+              position:sticky;top:64px;z-index:90;
+              background:var(--g50);border-bottom:1px solid var(--g200);
+              box-shadow:0 2px 6px rgba(0,0,0,.06);
+              padding:10px 24px;margin:0 -24px 20px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:12px;color:var(--g600);font-weight:600;">Ano:</label>
+      <select class="fc" style="height:34px;width:100px;font-size:13px;" onchange="setSmapAno(this.value)">${anoOpts}</select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:12px;color:var(--g600);font-weight:600;">Mês:</label>
+      <select class="fc" style="height:34px;width:150px;font-size:13px;" onchange="setSmapMes(this.value)">
+        <option value="0" ${!smapMesFiltro?'selected':''}>Último realizado</option>
+        ${mesOpts}
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:12px;color:var(--g600);font-weight:600;">Objetivo:</label>
+      <select class="fc" style="height:34px;min-width:180px;font-size:13px;" onchange="setSmapObj(this.value)">
+        <option value="" ${!smapObjFiltro?'selected':''}>Todos</option>
+        ${objOpts}
+      </select>
+    </div>
+    ${respOpts ? `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:12px;color:var(--g600);font-weight:600;">Responsável:</label>
+      <select class="fc" style="height:34px;min-width:160px;font-size:13px;" onchange="setSmapResp(this.value)">
+        <option value="" ${!smapRespFiltro?'selected':''}>Todos</option>
+        ${respOpts}
+      </select>
+    </div>` : ''}
+    ${smapObjFiltro  ? `<button class="btn btn-secondary btn-sm" onclick="setSmapObj('')"  style="height:34px;">✕ Objetivo</button>`    : ''}
+    ${smapMesFiltro  ? `<button class="btn btn-secondary btn-sm" onclick="setSmapMes(0)"   style="height:34px;">✕ Mês</button>`         : ''}
+    ${smapRespFiltro ? `<button class="btn btn-secondary btn-sm" onclick="setSmapResp('')" style="height:34px;">✕ Responsável</button>` : ''}
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="openSmapConfig()">⚙️ Posicionar</button>
+      <button class="btn btn-secondary" onclick="openSmapConnections()">🔗 Conexões</button>
+    </div>
+  </div>`;
+
+  // ── Aplicar filtros nos indicadores ───────────────────
+  let inds = db.indicadores.filter(i =>
+    (!smapObjFiltro  || i.objetivoId    == smapObjFiltro) &&
+    (!smapRespFiltro || i.responsavelId == smapRespFiltro)
+  );
+
+  // ── Legenda de objetivos estratégicos ─────────────────
+  const objsVisiveis = smapObjFiltro
+    ? db.objetivosEstrategicos.filter(o => o.id == smapObjFiltro)
+    : db.objetivosEstrategicos;
+  const objLegend = objsVisiveis.length ? `
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;align-items:center;">
+      <span style="font-size:11px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;">Objetivos:</span>
+      ${objsVisiveis.map(o =>
+        `<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
+                      background:${o.cor||'var(--primary)'}22;color:${o.cor||'var(--primary)'};
+                      border:1px solid ${o.cor||'var(--primary)'}44;">${esc(o.nome)}</span>`
+      ).join('')}
+    </div>` : '';
+
+  // ── Swim lanes ────────────────────────────────────────
+  const cfg2     = getSmapCfg();
+  const assigned = new Set(Object.keys(cfg2.nodes));
+  let lanesHtml  = '';
+
+  cfg2.perspectivas.forEach(p => {
+    const pInds = inds.filter(i => cfg2.nodes[String(i.id)]?.perspId === p.id);
+    lanesHtml += `
+    <div class="smap-persp" data-persp="${p.id}">
+      <div class="smap-persp-lbl" style="background:${p.cor};">
+        <span class="smap-persp-tag">${esc(p.tag)}</span>
+        <span class="smap-persp-name">${esc(p.label)}</span>
+      </div>
+      <div class="smap-persp-nodes" id="smap-lane-${p.id}">
+        ${pInds.length
+          ? pInds.map(i => buildSmapCard(i, p.cor, mesRef, anoRef)).join('')
+          : `<div style="font-size:11px;color:var(--g300);font-style:italic;">Nenhum indicador atribuído</div>`
+        }
+      </div>
+    </div>`;
+  });
+
+  // Indicadores sem perspectiva (somente os que passaram nos filtros)
+  const unassigned = inds.filter(i => !assigned.has(String(i.id)));
+  if (unassigned.length) {
+    lanesHtml += `
+    <div class="smap-persp" style="background:var(--g50);">
+      <div class="smap-persp-lbl" style="background:var(--g300);">
+        <span class="smap-persp-tag" style="font-size:11px;">—</span>
+        <span class="smap-persp-name">Não posicionado</span>
+      </div>
+      <div class="smap-persp-nodes" id="smap-lane-unassigned">
+        ${unassigned.map(i => buildSmapCard(i, 'var(--g400)', mesRef, anoRef)).join('')}
+      </div>
+    </div>`;
+  }
+
+  const emptyMsg = !db.indicadores.length ? `
+    <div class="smap-empty">
+      <div style="font-size:40px;margin-bottom:12px;">🗺️</div>
+      <div style="font-size:15px;font-weight:700;color:var(--g600);">Nenhum indicador cadastrado.</div>
+      <div style="font-size:13px;margin-top:6px;color:var(--g400);">Cadastre indicadores e associe-os a objetivos estratégicos.</div>
+    </div>` : (!inds.length ? `
+    <div class="smap-empty">
+      <div style="font-size:36px;margin-bottom:12px;">🔍</div>
+      <div style="font-size:15px;font-weight:700;color:var(--g600);">Nenhum indicador para os filtros selecionados.</div>
+    </div>` : '');
+
+  const posicionados = inds.filter(i => assigned.has(String(i.id))).length;
+
+  document.getElementById('content').innerHTML = `
+  ${toolbar}
+  ${objLegend}
+  <div class="smap-wrap" id="smapWrap">
+    <svg class="smap-arrows" id="smapSvg" width="100%" height="100%"></svg>
+    ${emptyMsg || lanesHtml}
+  </div>
+  <div id="smapNodePanel"></div>`;
+
+  if (inds.length) setTimeout(drawSmapArrows, 150);
+}
+
+/* Constrói um card de INDICADOR para o mapa */
+function buildSmapCard(ind, borderColor, mesRef, anoRef) {
+  const obj  = ind.objetivoId ? db.objetivosEstrategicos.find(o => o.id === ind.objetivoId) : null;
+  const m    = getMeta(ind.id, mesRef, anoRef);
+  const real = m?.metaRealizada ?? null;
+  const prev = m?.metaPrevista  ?? null;
+
+  let ico = '⚪', col = 'var(--g500)';
+  if (real !== null && prev !== null) {
+    const ok = ind.menorMelhor ? real <= prev : real >= prev;
+    ico = ok ? '🟢' : '🔴'; col = ok ? '#16a34a' : '#dc2626';
+  }
+  const pct = (real !== null && prev !== null && prev !== 0)
+    ? ((real / prev) * 100).toFixed(1) + '%' : null;
+
+  const fmtV = (v, u) => {
+    if (v === null) return '<span style="color:var(--g300)">—</span>';
+    if (u === 'R$') return fmtBRLInt(v);
+    if (u === '%')  return v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+    return v.toLocaleString('pt-BR') + (u !== 'un' ? '&nbsp;'+u : '');
+  };
+
+  const objTag = obj
+    ? `<div class="smap-obj-tag" style="background:${obj.cor||'var(--primary)'}18;color:${obj.cor||'var(--primary)'};border-color:${obj.cor||'var(--primary)'}33;">
+         ${esc(obj.nome)}
+       </div>`
+    : '';
+
+  return `
+  <div class="smap-node" id="smap-node-${ind.id}"
+       style="border-left-color:${borderColor||'var(--primary)'};"
+       onclick="goToIndicador(${ind.id})">
+    ${objTag}
+    <div class="smap-node-head">
+      <span class="smap-ind-status-ico">${ico}</span>
+      <div class="smap-node-title">${esc(ind.nome)}</div>
+    </div>
+    <div class="smap-node-vals">
+      <div class="smap-val-row">
+        <span class="smap-val-lbl">BGD</span>
+        <span class="smap-val-num">${fmtV(prev, ind.unidade)}</span>
+      </div>
+      <div class="smap-val-row">
+        <span class="smap-val-lbl">Real</span>
+        <span class="smap-val-num" style="color:${col};font-weight:800;">${fmtV(real, ind.unidade)}</span>
+        ${pct ? `<span style="font-size:9px;font-weight:700;color:${col};margin-left:3px;">${pct}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function goToIndicador(indId) {
+  indExpandedIds.add(indId);
+  navigateTo('indicadores');
+  setTimeout(() => {
+    const el = document.getElementById(`ind-card-${indId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 120);
+}
+
+function toggleSmapPanel(indId) {
+  const panel = document.getElementById('smapNodePanel');
+  const ind   = db.indicadores.find(i => i.id === indId);
+  if (!ind) return;
+
+  if (panel.dataset.indId == indId && panel.innerHTML) {
+    panel.innerHTML = '';
+    panel.dataset.indId = '';
+    document.querySelectorAll('.smap-node').forEach(n => n.classList.remove('smap-node-active'));
+    return;
+  }
+  document.querySelectorAll('.smap-node').forEach(n => n.classList.remove('smap-node-active'));
+  document.getElementById(`smap-node-${indId}`)?.classList.add('smap-node-active');
+  panel.dataset.indId = indId;
+
+  const now    = new Date();
+  const mesRef = now.getMonth() + 1;
+  const anoRef = now.getFullYear();
+  const cfg    = getSmapCfg();
+  const persp  = cfg.perspectivas.find(p => p.id === cfg.nodes[String(indId)]?.perspId);
+  const obj    = ind.objetivoId ? db.objetivosEstrategicos.find(o => o.id === ind.objetivoId) : null;
+
+  const m    = getMeta(ind.id, mesRef, anoRef);
+  const real = m?.metaRealizada ?? null;
+  const prev = m?.metaPrevista  ?? null;
+  let ico = '⚪', col = 'var(--g500)';
+  if (real !== null && prev !== null) {
+    const ok = ind.menorMelhor ? real <= prev : real >= prev;
+    ico = ok ? '🟢' : '🔴'; col = ok ? '#16a34a' : '#dc2626';
+  }
+  const fmtV = (v, u) => v === null ? '—'
+    : u === 'R$' ? fmtBRLInt(v)
+    : u === '%'  ? v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' %'
+    : v.toLocaleString('pt-BR') + (u !== 'un' ? ' '+u : '');
+  const pct = (real !== null && prev !== null && prev !== 0)
+    ? ((real/prev)*100).toFixed(1)+'%' : null;
+
+  // Conexões deste indicador
+  const conns = cfg.conexoes.filter(c => c.from === indId || c.to === indId);
+  let connsHtml = '';
+  if (conns.length) {
+    connsHtml = `
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--g100);">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--g500);letter-spacing:.06em;margin-bottom:6px;">🔗 Conexões</div>
+      ${conns.map(c => {
+        const isFrom  = c.from === indId;
+        const other   = db.indicadores.find(i => i.id === (isFrom ? c.to : c.from));
+        return `<div style="font-size:11px;color:var(--g700);padding:2px 0;">
+          ${isFrom ? '→' : '←'} ${other ? esc(other.nome) : '—'}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  panel.innerHTML = `
+  <div class="smap-panel">
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;">
+      <span style="font-size:22px;flex-shrink:0;">${ico}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:800;color:var(--g900);line-height:1.3;">${esc(ind.nome)}</div>
+        ${persp ? `<div style="font-size:11px;color:var(--g500);margin-top:2px;">📍 ${esc(persp.tag)} — ${esc(persp.label)}</div>` : ''}
+        ${obj ? `<div style="margin-top:5px;display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
+                   background:${obj.cor||'var(--primary)'}18;color:${obj.cor||'var(--primary)'};border:1px solid ${obj.cor||'var(--primary)'}33;">
+                   ${esc(obj.nome)}</div>` : ''}
+      </div>
+      <button class="icon-btn" style="width:28px;height:28px;flex-shrink:0;"
+        onclick="document.getElementById('smapNodePanel').innerHTML='';document.getElementById('smapNodePanel').dataset.indId='';document.querySelectorAll('.smap-node').forEach(n=>n.classList.remove('smap-node-active'));">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;">
+      <div style="background:var(--g50);border-radius:8px;padding:10px 12px;text-align:center;">
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:var(--g500);letter-spacing:.06em;margin-bottom:4px;">BGD</div>
+        <div style="font-size:16px;font-weight:800;color:var(--g800);">${fmtV(prev,ind.unidade)}</div>
+      </div>
+      <div style="background:${col}11;border-radius:8px;padding:10px 12px;text-align:center;border:1px solid ${col}33;">
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:${col};letter-spacing:.06em;margin-bottom:4px;">REAL ${pct?'('+pct+')':''}</div>
+        <div style="font-size:16px;font-weight:800;color:${col};">${fmtV(real,ind.unidade)}</div>
+      </div>
+    </div>
+    ${connsHtml}
+    <div style="margin-top:10px;text-align:right;">
+      <button class="btn btn-sm btn-secondary" onclick="navigateTo('indicadores')">📊 Ver todos indicadores</button>
+    </div>
+  </div>`;
+}
+
+function drawSmapArrows() {
+  const svg  = document.getElementById('smapSvg');
+  const wrap = document.getElementById('smapWrap');
+  if (!svg || !wrap) return;
+  const cfg     = getSmapCfg();
+  if (!cfg.conexoes.length) { svg.innerHTML = ''; return; }
+
+  const wRect = wrap.getBoundingClientRect();
+  const W     = wrap.offsetWidth;
+  const H     = wrap.offsetHeight;
+  svg.setAttribute('width',  W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  let paths = '';
+  cfg.conexoes.forEach(({ from, to }) => {
+    const fEl = document.getElementById(`smap-node-${from}`);
+    const tEl = document.getElementById(`smap-node-${to}`);
+    if (!fEl || !tEl) return;
+    const fr = fEl.getBoundingClientRect();
+    const tr = tEl.getBoundingClientRect();
+    const x1 = fr.left - wRect.left + fr.width  / 2;
+    const y1 = fr.top  - wRect.top  + fr.height;
+    const x2 = tr.left - wRect.left + tr.width  / 2;
+    const y2 = tr.top  - wRect.top;
+    const mid = (y1 + y2) / 2;
+    paths += `<path d="M ${x1} ${y1} C ${x1} ${mid}, ${x2} ${mid}, ${x2} ${y2}"
+      fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-dasharray="6,3"
+      marker-end="url(#smap-arrow)" opacity="0.75"/>`;
+  });
+
+  svg.innerHTML = `
+  <defs>
+    <marker id="smap-arrow" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  ${paths}`;
+}
+
+/* ── Config: posicionar indicadores em perspectivas ─── */
+function openSmapConfig() {
+  const cfg  = getSmapCfg();
+  const inds = db.indicadores;
+  const objs = db.objetivosEstrategicos;
+
+  // Perspectivas com picker de cor
+  const perspRows = cfg.perspectivas.map((p, i) => `
+  <div class="smap-cfg-persp-row">
+    <input type="color" value="${p.cor}" id="smap-pcor-${i}"
+      style="width:32px;height:30px;border:1px solid var(--g200);border-radius:5px;cursor:pointer;padding:1px 2px;flex-shrink:0;">
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:700;color:var(--g800);">${esc(p.tag)} — ${esc(p.label)}</div>
+    </div>
+  </div>`).join('');
+
+  // Agrupar indicadores por objetivo para exibição
+  const grupos = [];
+  inds.forEach(ind => {
+    const objId = ind.objetivoId || null;
+    let g = grupos.find(x => x.objId === objId);
+    if (!g) { g = { objId, inds:[] }; grupos.push(g); }
+    g.inds.push(ind);
+  });
+
+  const indRows = grupos.map(g => {
+    const obj = g.objId ? objs.find(o => o.id === g.objId) : null;
+    const header = `
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+                padding:10px 0 5px;color:${obj?.cor||'var(--g500)'};border-bottom:2px solid ${obj?.cor||'var(--g200)'}22;
+                margin-top:8px;">
+      ${obj ? `<span style="background:${obj.cor||'var(--primary)'}18;border:1px solid ${obj.cor||'var(--primary)'}33;border-radius:20px;padding:1px 8px;">${esc(obj.nome)}</span>` : '— Sem objetivo vinculado'}
+    </div>`;
+    const rows = g.inds.map(ind => {
+      const cur  = cfg.nodes[String(ind.id)]?.perspId || '';
+      const opts = `<option value="">— Sem perspectiva —</option>` +
+        cfg.perspectivas.map(p =>
+          `<option value="${p.id}" ${cur===p.id?'selected':''}>${p.tag} — ${p.label}</option>`
+        ).join('');
+      return `
+      <div class="smap-cfg-obj-row">
+        <div style="flex:1;font-size:13px;font-weight:600;color:var(--g800);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ind.nome)}</div>
+        <select id="smap-ind-${ind.id}"
+          style="border:1px solid var(--g300);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--g700);max-width:185px;flex-shrink:0;">
+          ${opts}
+        </select>
+      </div>`;
+    }).join('');
+    return header + rows;
+  }).join('');
+
+  openModal(`
+  <div class="modal-head">
+    <div class="modal-title">⚙️ Posicionar Indicadores no Mapa</div>
+    <button class="icon-btn" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body" style="max-height:72vh;overflow-y:auto;">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--g500);letter-spacing:.06em;margin-bottom:8px;">Perspectivas (cor)</div>
+    ${perspRows}
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--g500);letter-spacing:.06em;margin:18px 0 4px;">Atribuir Indicadores às Perspectivas</div>
+    <div style="font-size:12px;color:var(--g400);margin-bottom:10px;">Indicadores agrupados por Objetivo Estratégico</div>
+    ${inds.length ? indRows : `<div style="font-size:13px;color:var(--g400);font-style:italic;">Nenhum indicador cadastrado.</div>`}
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveSmapPerspConfig()">💾 Salvar</button>
+  </div>`);
+}
+
+function saveSmapPerspConfig() {
+  const cfg  = getSmapCfg();
+  // Salva cores
+  cfg.perspectivas.forEach((p, i) => {
+    const el = document.getElementById(`smap-pcor-${i}`);
+    if (el) p.cor = el.value;
+  });
+  // Salva posicionamento dos indicadores
+  db.indicadores.forEach(ind => {
+    const sel = document.getElementById(`smap-ind-${ind.id}`);
+    if (!sel) return;
+    if (sel.value) cfg.nodes[String(ind.id)] = { perspId: sel.value };
+    else delete cfg.nodes[String(ind.id)];
+  });
+  saveSmapCfg(cfg);
+  closeModal();
+  renderMapaEstrategico();
+}
+
+/* ── Editar Conexões entre indicadores ───────────────── */
+let _smapConnCfg = null;
+
+function openSmapConnections() {
+  _smapConnCfg = JSON.parse(JSON.stringify(getSmapCfg()));
+  const inds   = db.indicadores;
+  if (!inds.length) { alert('Cadastre indicadores antes de criar conexões.'); return; }
+
+  const opts = inds.map(i => `<option value="${i.id}">${esc(i.nome)}</option>`).join('');
+
+  openModal(`
+  <div class="modal-head">
+    <div class="modal-title">🔗 Conexões entre Indicadores</div>
+    <button class="icon-btn" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+    <div style="font-size:13px;color:var(--g600);margin-bottom:14px;line-height:1.5;">
+      Setas representam relações de <strong>causa → efeito</strong>.
+      Ex.: "NPS" → "Retenção de Clientes" → "Receita Recorrente".
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="flex:1;min-width:130px;">
+        <div style="font-size:11px;font-weight:700;color:var(--g500);margin-bottom:4px;">DE (causa)</div>
+        <select id="smap-conn-from" style="width:100%;border:1px solid var(--g300);border-radius:6px;padding:6px 8px;font-size:12px;">${opts}</select>
+      </div>
+      <div style="font-size:18px;color:var(--g400);padding-bottom:6px;">→</div>
+      <div style="flex:1;min-width:130px;">
+        <div style="font-size:11px;font-weight:700;color:var(--g500);margin-bottom:4px;">PARA (efeito)</div>
+        <select id="smap-conn-to" style="width:100%;border:1px solid var(--g300);border-radius:6px;padding:6px 8px;font-size:12px;">${opts}</select>
+      </div>
+      <button class="btn btn-primary" onclick="smapAddConn()" style="flex-shrink:0;">＋ Adicionar</button>
+    </div>
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--g500);letter-spacing:.06em;margin-bottom:8px;">Conexões definidas</div>
+    <div id="smap-conn-list"></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveSmapConns()">💾 Salvar Conexões</button>
+  </div>`);
+  smapRenderConnList();
+}
+
+function smapRenderConnList() {
+  const inds = db.indicadores;
+  const el   = document.getElementById('smap-conn-list');
+  if (!el) return;
+  if (!_smapConnCfg.conexoes.length) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--g400);font-style:italic;padding:8px 0;">Nenhuma conexão definida ainda.</div>`;
+    return;
+  }
+  el.innerHTML = _smapConnCfg.conexoes.map((c, idx) => {
+    const fi = inds.find(i => i.id === c.from);
+    const ti = inds.find(i => i.id === c.to);
+    return `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--g100);">
+      <div style="flex:1;font-size:13px;color:var(--g700);min-width:0;">
+        <strong style="color:var(--g800);">${fi ? esc(fi.nome) : '?'}</strong>
+        <span style="color:var(--g400);margin:0 6px;">→</span>
+        <strong style="color:var(--g800);">${ti ? esc(ti.nome) : '?'}</strong>
+      </div>
+      <button class="icon-btn del" style="width:24px;height:24px;font-size:11px;flex-shrink:0;"
+        onclick="smapDelConn(${idx})">🗑️</button>
+    </div>`;
+  }).join('');
+}
+
+function smapAddConn() {
+  const from = +document.getElementById('smap-conn-from')?.value;
+  const to   = +document.getElementById('smap-conn-to')?.value;
+  if (!from || !to || from === to) return;
+  const dup = _smapConnCfg.conexoes.some(c => c.from === from && c.to === to);
+  if (!dup) _smapConnCfg.conexoes.push({ from, to });
+  smapRenderConnList();
+}
+
+function smapDelConn(idx) {
+  _smapConnCfg.conexoes.splice(idx, 1);
+  smapRenderConnList();
+}
+
+function saveSmapConns() {
+  saveSmapCfg(_smapConnCfg);
+  closeModal();
+  renderMapaEstrategico();
 }
 
 /* ================================================================
@@ -6375,6 +6994,25 @@ function openProjectModal(pid=null) {
       <div class="fg"><label class="lbl">Data de Início</label><input id="f_pinicio" class="fc" type="date" value="${p?.dataInicio||''}"></div>
       <div class="fg"><label class="lbl">Data de Fim</label><input id="f_pfim" class="fc" type="date" value="${p?.dataFim||''}"></div>
     </div>
+    <div class="fg" style="margin-top:4px;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;">
+        <div style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;">
+          <input type="checkbox" id="f_pcontrola_custo" ${(p?.controlaCusto !== false) ? 'checked' : ''}
+            style="opacity:0;width:0;height:0;position:absolute;"
+            onchange="
+              const sl=this.closest('label').querySelector('.toggle-sl');
+              sl.style.transform=this.checked?'translateX(18px)':'translateX(2px)';
+              sl.closest('div').style.background=this.checked?'var(--primary)':'var(--g300)';
+            ">
+          <div style="position:absolute;inset:0;border-radius:34px;background:${(p?.controlaCusto !== false)?'var(--primary)':'var(--g300)'};transition:background .2s;"></div>
+          <div class="toggle-sl" style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s;transform:${(p?.controlaCusto !== false)?'translateX(18px)':'translateX(2px)'};"></div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--g700);">Controlar Custos</div>
+          <div style="font-size:11px;color:var(--g400);margin-top:1px;">Habilita a aba de custos neste projeto</div>
+        </div>
+      </label>
+    </div>
   </div>
   <div class="modal-foot">
     <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -6387,9 +7025,11 @@ async function saveProject(pid) {
   const btn=document.getElementById('btnSvProj');
   btn.disabled=true;btn.textContent='Salvando...';
   const empVal=g('f_pemp');
+  const controlaCusto = document.getElementById('f_pcontrola_custo')?.checked !== false;
   const data=toDB.projeto({nome,descricao:g('f_pdesc').trim(),status:g('f_pstatus'),
     icone:g('f_picone')||'📁',
     empresaId:empVal?+empVal:null,
+    controlaCusto,
     responsavelId:+g('f_presp')||null,dataInicio:g('f_pinicio')||null,dataFim:g('f_pfim')||null});
   try {
     if (pid){await sbUpdate('projetos',pid,data);toast('Projeto atualizado!');}
@@ -7607,7 +8247,7 @@ async function deleteProjectCascade(pid) {
     for (const a of anexos) {
       try {
         const path = a.url.replace(`${STORAGE}/object/public/${BUCKET}/`,'');
-        await fetch(`${STORAGE}/object/${BUCKET}/${path}`, { method:'DELETE', headers:{ 'Authorization':`Bearer ${KEY}` }});
+        await fetch(`${STORAGE}/object/${BUCKET}/${path}`, { method:'DELETE', headers:{ 'Authorization':H['Authorization'] }});
       } catch(_){}
     }
 
@@ -7673,6 +8313,7 @@ async function init() {
   const sess = loadSession();
   if (sess?.access_token) {
     try {
+      setAuthToken(sess.access_token);
       const profile = await getProfile(sess.user_id);
       if (profile) {
         currentUser    = { id:sess.user_id, email:sess.email };
