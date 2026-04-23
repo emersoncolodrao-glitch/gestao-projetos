@@ -7745,7 +7745,25 @@ async function saveIndicador(iid) {
   const data = toDB.indicador({ nome, descricao:g('f_inddesc').trim(), unidade:g('f_indunidade'), objetivoId:+g('f_indobjetivo')||null, acumulado:document.getElementById('f_indacumulado')?.checked||false, menorMelhor:document.getElementById('f_indmenormelhor')?.checked||false, ocultarAcum:document.getElementById('f_indocultaracum')?.checked||false, responsavelId:+g('f_indresp')||null });
   try {
     if (iid) { await sbUpdate('indicadores',iid,data); toast('Indicador atualizado!'); }
-    else     { const c=await sbCreate('indicadores',data); toast('Indicador criado!'); if(c?.id)indExpandedIds.add(c.id); }
+    else {
+      const c = await sbCreate('indicadores', data);
+      toast('Indicador criado!');
+      if (c?.id) {
+        indExpandedIds.add(c.id);
+        // Se o usuário tem restrições configuradas, libera automaticamente o novo indicador para ele
+        if (!currentProfile?.is_admin && myPermissions !== null && currentUser?.id) {
+          try {
+            await fetch(`${REST}/user_permissions`, {
+              method:'POST',
+              headers:{...H,'Prefer':'return=minimal'},
+              body: JSON.stringify({ user_id:currentUser.id, resource_type:'indicador', resource_id:c.id })
+            });
+            // Atualiza myPermissions em memória para refletir o novo acesso imediatamente
+            myPermissions.indicadores.add(c.id);
+          } catch(e) { console.warn('Não foi possível liberar permissão automática:', e.message); }
+        }
+      }
+    }
     await reloadTable('indicadores'); closeModal(); render();
   } catch(e){ toast('Erro: '+e.message,'err'); btn.disabled=false; btn.textContent=iid?'Salvar Alterações':'Criar Indicador'; }
 }
