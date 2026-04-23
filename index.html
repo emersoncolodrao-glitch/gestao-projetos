@@ -1641,10 +1641,14 @@ function renderDashboard() {
   const nFim       = projs.filter(p=>p.status==='Concluído').length;
   const nLate      = projs.filter(p=>isLate(p)).length;
   // tarefas sem prazo final (excluindo concluídas)
-  const tarefasSemData = db.tarefas.filter(t=>t.status!=='Concluído' && !t.dataFim);
-  const nSemData   = tarefasSemData.length;
   // minhas tarefas — responsável vinculado ao usuário logado
   const meuResponsavel = db.responsaveis.find(r=>r.userId === currentUser?.id);
+  const tarefasSemData = db.tarefas.filter(t=>t.status!=='Concluído' && !t.dataFim);
+  const tarefasSemDataVisiveis = currentProfile?.is_admin
+    ? tarefasSemData
+    : tarefasSemData.filter(t => meuResponsavel &&
+        (t.responsavelId===meuResponsavel.id || taskResponsaveis(t.id).some(r=>r.id===meuResponsavel.id)));
+  const nSemData = tarefasSemDataVisiveis.length;
   const nMinhas = meuResponsavel
     ? db.tarefas.filter(t=>t.status!=='Concluído' &&
         (t.responsavelId===meuResponsavel.id || taskResponsaveis(t.id).some(r=>r.id===meuResponsavel.id))
@@ -1887,7 +1891,12 @@ function buildMinhasTarefasPanel() {
 }
 
 function buildSemDataPanel() {
-  const allTarefas = db.tarefas.filter(t=>t.status!=='Concluído' && !t.dataFim);
+  const meuResp = db.responsaveis.find(r=>r.userId === currentUser?.id);
+  const todasSemData = db.tarefas.filter(t=>t.status!=='Concluído' && !t.dataFim);
+  const allTarefas = currentProfile?.is_admin
+    ? todasSemData
+    : todasSemData.filter(t => meuResp &&
+        (t.responsavelId===meuResp.id || taskResponsaveis(t.id).some(r=>r.id===meuResp.id)));
   if (!allTarefas.length) return `
     <div class="empty"><div class="empty-icon">🎉</div>
       <p>Todas as tarefas em andamento têm prazo definido!</p>
@@ -5641,6 +5650,7 @@ async function loadAndRenderUsers() {
         <td>${roleBadge}</td>
         <td style="text-align:center;white-space:nowrap">
           <button class="icon-btn" title="Editar usuário" onclick="openUserModal('${pJson}')">✏️</button>
+          <button class="icon-btn" title="Redefinir senha" onclick="openResetPasswordModal('${esc(p.email)}','${esc(p.nome)}','${p.id}')">🔑</button>
           ${!p.is_admin && !isSelf ? `<button class="icon-btn" title="Permissões de acesso" onclick="openPermissionsModal('${p.id}','${esc(p.nome)}')">🔒</button>` : ''}
           ${!isSelf?`<button class="btn btn-sm btn-secondary" onclick="toggleAdmin('${p.id}',${!p.is_admin})">${p.is_admin?'↓ Remover admin':'↑ Tornar admin'}</button>`:''}
           ${!isSelf?`<button class="icon-btn del" title="Excluir usuário" style="width:28px;height:28px;font-size:13px;" onclick="confirmDeleteUser('${p.id}','${esc(p.nome)}')">🗑️</button>`:''}
@@ -5691,6 +5701,152 @@ async function changeUserStatus(userId, newStatus, nome, selectEl) {
   } catch(e) {
     toast('Erro: '+e.message,'err');
     loadAndRenderUsers(); // restaura select ao estado original
+  }
+}
+
+function openResetPasswordModal(email, nome, userId) {
+  openModal(`
+  <div class="modal-head">
+    <div class="modal-title">🔑 Redefinir Senha</div>
+    <button class="modal-x" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--g50);border-radius:var(--r);border:1px solid var(--g200);margin-bottom:18px;">
+      <div class="avatar" style="width:34px;height:34px;font-size:13px;background:${avatarColor(email.length)};">${initials(nome)}</div>
+      <div>
+        <div style="font-weight:700;color:var(--g800);font-size:13px;">${esc(nome)}</div>
+        <div style="font-size:12px;color:var(--g500);margin-top:1px;">${esc(email)}</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:2px solid var(--g100);margin-bottom:18px;gap:0;">
+      <button id="rpTab1" onclick="rpSwitchTab(1)"
+        style="flex:1;padding:9px 0;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;
+               border-bottom:2px solid var(--primary);margin-bottom:-2px;color:var(--primary);">
+        📧 Enviar por e-mail
+      </button>
+      <button id="rpTab2" onclick="rpSwitchTab(2)"
+        style="flex:1;padding:9px 0;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;
+               border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--g400);">
+        ✏️ Definir diretamente
+      </button>
+    </div>
+
+    <!-- Tab 1: e-mail -->
+    <div id="rpPane1">
+      <p style="font-size:13px;color:var(--g600);line-height:1.6;margin:0 0 16px;">
+        Um e-mail será enviado para <strong>${esc(email)}</strong> com um link seguro.<br>
+        O link expira em <strong>24 horas</strong>.
+      </p>
+    </div>
+
+    <!-- Tab 2: senha direta -->
+    <div id="rpPane2" style="display:none;">
+      <div class="fg">
+        <label class="lbl">Nova senha <span class="req">*</span></label>
+        <input id="rp_pwd" class="fc" type="password" placeholder="Mínimo 6 caracteres"
+          oninput="document.getElementById('rp_strength').textContent=rpStrength(this.value)">
+        <div id="rp_strength" style="font-size:11px;margin-top:4px;color:var(--g400);"></div>
+      </div>
+      <div class="fg">
+        <label class="lbl">Confirmar nova senha <span class="req">*</span></label>
+        <input id="rp_pwd2" class="fc" type="password" placeholder="Repita a senha">
+      </div>
+    </div>
+
+    <div id="resetMsg" style="display:none;margin-top:4px;"></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" id="btnResetPwd" onclick="rpExecute('${esc(email)}','${esc(userId)}')">📧 Enviar link</button>
+  </div>`);
+}
+
+let _rpActiveTab = 1;
+function rpSwitchTab(n) {
+  _rpActiveTab = n;
+  document.getElementById('rpPane1').style.display = n===1?'':'none';
+  document.getElementById('rpPane2').style.display = n===2?'':'none';
+  const t1 = document.getElementById('rpTab1');
+  const t2 = document.getElementById('rpTab2');
+  t1.style.borderBottomColor = n===1?'var(--primary)':'transparent';
+  t1.style.color = n===1?'var(--primary)':'var(--g400)';
+  t2.style.borderBottomColor = n===2?'var(--primary)':'transparent';
+  t2.style.color = n===2?'var(--primary)':'var(--g400)';
+  const btn = document.getElementById('btnResetPwd');
+  btn.textContent = n===1?'📧 Enviar link':'✏️ Definir senha';
+}
+
+function rpStrength(pwd) {
+  if (!pwd) return '';
+  if (pwd.length < 6)  return '🔴 Muito curta';
+  if (pwd.length < 8)  return '🟡 Fraca';
+  const strong = /[A-Z]/.test(pwd) && /[0-9]/.test(pwd) && /[^A-Za-z0-9]/.test(pwd);
+  const medium = /[A-Z]/.test(pwd) || /[0-9]/.test(pwd);
+  return strong ? '🟢 Forte' : medium ? '🟡 Média' : '🟡 Fraca';
+}
+
+async function rpExecute(email, userId) {
+  const btn = document.getElementById('btnResetPwd');
+  const msg = document.getElementById('resetMsg');
+  msg.style.display = 'none';
+
+  if (_rpActiveTab === 1) {
+    // Enviar e-mail
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try {
+      await authRecover(email);
+      msg.style.display = 'block';
+      msg.innerHTML = `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r);padding:10px 14px;font-size:12px;color:#15803d;">
+        ✅ E-mail enviado! O usuário receberá o link em instantes.
+      </div>`;
+      btn.textContent = '✓ Enviado';
+      setTimeout(closeModal, 2500);
+    } catch(e) {
+      msg.style.display = 'block';
+      msg.innerHTML = `<div style="background:var(--danger-lt);border:1px solid #fca5a5;border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--danger);">
+        ❌ Erro: ${e.message}
+      </div>`;
+      btn.disabled = false; btn.textContent = '📧 Tentar novamente';
+    }
+  } else {
+    // Definir senha diretamente
+    const pwd  = document.getElementById('rp_pwd').value;
+    const pwd2 = document.getElementById('rp_pwd2').value;
+    if (!pwd || pwd.length < 6) {
+      msg.style.display='block';
+      msg.innerHTML=`<div style="background:var(--danger-lt);border:1px solid #fca5a5;border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--danger);">A senha deve ter pelo menos 6 caracteres.</div>`;
+      return;
+    }
+    if (pwd !== pwd2) {
+      msg.style.display='block';
+      msg.innerHTML=`<div style="background:var(--danger-lt);border:1px solid #fca5a5;border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--danger);">As senhas não coincidem.</div>`;
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Salvando…';
+    try {
+      const EDGE = `https://ikmjoddgmshybdxyfttg.supabase.co/functions/v1/admin-reset-password`;
+      const res  = await fetch(EDGE, {
+        method:'POST',
+        headers:{ 'apikey':KEY, 'Authorization':H['Authorization'], 'Content-Type':'application/json' },
+        body: JSON.stringify({ userId, newPassword: pwd })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao redefinir senha');
+      msg.style.display='block';
+      msg.innerHTML=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r);padding:10px 14px;font-size:12px;color:#15803d;">
+        ✅ Senha redefinida com sucesso!
+      </div>`;
+      btn.textContent='✓ Salvo';
+      setTimeout(closeModal, 2000);
+    } catch(e) {
+      msg.style.display='block';
+      msg.innerHTML=`<div style="background:var(--danger-lt);border:1px solid #fca5a5;border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--danger);">
+        ❌ Erro: ${e.message}
+      </div>`;
+      btn.disabled=false; btn.textContent='✏️ Definir senha';
+    }
   }
 }
 
