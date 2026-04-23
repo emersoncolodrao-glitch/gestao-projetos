@@ -1195,6 +1195,7 @@ async function loadMyPermissions() {
     const indRows  = rows.filter(r => r.resource_type === 'indicador');
     const cadRow   = rows.find(r  => r.resource_type === 'cadastros');
     const relRow   = rows.find(r  => r.resource_type === 'agmrelatorio');
+    const mapaRow  = rows.find(r  => r.resource_type === 'mapaestrategico');
 
     // Mapa de abas por projeto: pid → Set<'tarefas'|'lista'|'cronograma'|'custos'>
     const TAB_MAP = { proj_kanban:'tarefas', proj_lista:'lista', proj_cronograma:'cronograma', proj_custos:'custos' };
@@ -1212,8 +1213,9 @@ async function loadMyPermissions() {
       projetos:      new Set(projRows.map(r => r.resource_id)),
       projetoTabs:   tabRows.length ? projetoTabs : null,
       indicadores:   new Set(indRows.map(r  => r.resource_id)),
-      cadastros:     !!cadRow,
-      agmrelatorio:  !!relRow,
+      cadastros:        !!cadRow,
+      agmrelatorio:     !!relRow,
+      mapaestrategico:  !!mapaRow,
     };
   } catch(e) {
     console.warn('Erro ao carregar permissões:', e.message);
@@ -1224,8 +1226,9 @@ async function loadMyPermissions() {
 // id = null → verifica se tem acesso a pelo menos um item do tipo (usado para mostrar/ocultar nav)
 function canSee(type, id = null) {
   if (!myPermissions) return true; // sem restrições
-  if (type === 'cadastros')    return myPermissions.cadastros;
-  if (type === 'agmrelatorio') return myPermissions.agmrelatorio;
+  if (type === 'cadastros')       return myPermissions.cadastros;
+  if (type === 'agmrelatorio')    return myPermissions.agmrelatorio;
+  if (type === 'mapaestrategico') return myPermissions.mapaestrategico;
   const set = type === 'projeto' ? myPermissions.projetos : myPermissions.indicadores;
   if (set == null) return true; // tipo não configurado (nunca deve ocorrer após fix) → acesso total
   if (id === null) return set.size > 0; // sem id: basta ter ao menos um
@@ -1248,10 +1251,12 @@ function applyNavPermissions() {
   const navInd  = document.getElementById('nav-indicadores');
   const navAnot = document.getElementById('nav-anotacoes');
   const navRel  = document.getElementById('nav-agmrelatorio');
+  const navMapa = document.getElementById('nav-mapaestrategico');
   const navSet  = document.getElementById('nav-settings');
-  if (navInd)  navInd.style.display  = canSee('indicador')    ? '' : 'none';
-  if (navAnot) navAnot.style.display = canSee('indicador')    ? '' : 'none';
-  if (navRel)  navRel.style.display  = canSee('agmrelatorio') ? '' : 'none';
+  if (navInd)  navInd.style.display  = canSee('indicador')       ? '' : 'none';
+  if (navAnot) navAnot.style.display = canSee('indicador')       ? '' : 'none';
+  if (navRel)  navRel.style.display  = canSee('agmrelatorio')    ? '' : 'none';
+  if (navMapa) navMapa.style.display = canSee('mapaestrategico') ? '' : 'none';
   if (navSet)  navSet.style.display  = (currentProfile?.is_admin || canSee('cadastros')) ? '' : 'none';
 }
 
@@ -3924,6 +3929,17 @@ function setSmapObj(v)  { smapObjFiltro  = v;   renderMapaEstrategico(); }
 function setSmapResp(v) { smapRespFiltro = v;   renderMapaEstrategico(); }
 
 function renderMapaEstrategico() {
+  if (!canSee('mapaestrategico')) {
+    document.getElementById('pageTitle').textContent = 'Mapa Estratégico';
+    document.getElementById('pageSub').textContent   = '';
+    document.getElementById('content').innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:var(--g400);">
+      <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+      <div style="font-size:16px;font-weight:700;color:var(--g700);margin-bottom:8px;">Acesso restrito</div>
+      <div style="font-size:13px;">Você não tem permissão para acessar o Mapa Estratégico.</div>
+    </div>`;
+    return;
+  }
   document.getElementById('pageTitle').textContent = '🗺️ Mapa Estratégico';
   document.getElementById('pageSub').textContent   = 'Indicadores posicionados por perspectiva';
 
@@ -5911,6 +5927,7 @@ async function openPermissionsModal(userId, userName, isNewUser = false) {
     const indPerms     = existing.filter(r => r.resource_type === 'indicador').map(r => r.resource_id);
     const hasCad       = existing.some(r => r.resource_type === 'cadastros');
     const hasRel       = existing.some(r => r.resource_type === 'agmrelatorio');
+    const hasMapaEst   = existing.some(r => r.resource_type === 'mapaestrategico');
 
     // Tab perms: Map<pid, Set<type>>
     const tabExisting = {};
@@ -6070,6 +6087,14 @@ async function openPermissionsModal(userId, userName, isNewUser = false) {
         </label>
       </div>
 
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--g700);margin-bottom:8px;">🗺️ Mapa Estratégico</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;padding:8px 10px;border:1px solid var(--g100);border-radius:var(--r);">
+          <input type="checkbox" id="perm_mapaestrategico" ${hasMapaEst?'checked':''} style="accent-color:var(--primary);width:14px;height:14px;">
+          <span style="color:var(--g800);">Acesso ao Mapa Estratégico</span>
+        </label>
+      </div>
+
       <div style="margin-bottom:8px;">
         <div style="font-size:12px;font-weight:700;color:var(--g700);margin-bottom:8px;">⚙️ Configurações (Cadastros)</div>
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;padding:8px 10px;border:1px solid var(--g100);border-radius:var(--r);">
@@ -6135,8 +6160,9 @@ async function savePermissions(userId) {
   try {
     const projIds = [...document.querySelectorAll('input[data-type="projeto"]:checked')].map(el => +el.dataset.id);
     const indIds  = [...document.querySelectorAll('input[data-type="indicador"]:checked')].map(el => +el.dataset.id);
-    const cad     = document.getElementById('perm_cadastros')?.checked    || false;
-    const rel     = document.getElementById('perm_agmrelatorio')?.checked || false;
+    const cad     = document.getElementById('perm_cadastros')?.checked       || false;
+    const rel     = document.getElementById('perm_agmrelatorio')?.checked    || false;
+    const mapaEst = document.getElementById('perm_mapaestrategico')?.checked || false;
 
     // Tab permissions: por project type
     const tabRows = [];
@@ -6155,7 +6181,7 @@ async function savePermissions(userId) {
     if (!delRes.ok && delRes.status !== 404) throw new Error(await delRes.text());
 
     // Acesso total: não salva nada (ausência de sentinela = irrestrito)
-    if (allProj && allTabs && allInd && cad && rel) {
+    if (allProj && allTabs && allInd && cad && rel && mapaEst) {
       toast('Permissões salvas — acesso total liberado.');
       closeModal();
       loadAndRenderUsers();
@@ -6167,8 +6193,9 @@ async function savePermissions(userId) {
     projIds.forEach(id => rows.push({ user_id:userId, resource_type:'projeto',   resource_id:id }));
     indIds.forEach(id  => rows.push({ user_id:userId, resource_type:'indicador', resource_id:id }));
     tabRows.forEach(r  => rows.push(r));
-    if (rel)      rows.push({ user_id:userId, resource_type:'agmrelatorio', resource_id:null });
-    if (cad)      rows.push({ user_id:userId, resource_type:'cadastros',    resource_id:null });
+    if (rel)      rows.push({ user_id:userId, resource_type:'agmrelatorio',    resource_id:null });
+    if (mapaEst)  rows.push({ user_id:userId, resource_type:'mapaestrategico', resource_id:null });
+    if (cad)      rows.push({ user_id:userId, resource_type:'cadastros',       resource_id:null });
 
     if (rows.length) {
       const insRes = await fetch(`${REST}/user_permissions`, {
