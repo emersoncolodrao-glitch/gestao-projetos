@@ -929,26 +929,26 @@ const toDB = {
    REST HELPERS
    ================================================================ */
 async function apiFetch(table, query='') {
-  const res = await fetch(`${REST}/${table}?${query}`, { headers:H });
+  const res = await withTokenRefresh(()=>fetch(`${REST}/${table}?${query}`, { headers:H }));
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 async function sbCreate(table, data) {
-  const res = await fetch(`${REST}/${table}`, {
+  const res = await withTokenRefresh(()=>fetch(`${REST}/${table}`, {
     method:'POST', headers:{...H,'Prefer':'return=representation'}, body:JSON.stringify(data)
-  });
+  }));
   if (!res.ok) throw new Error(await res.text());
   const arr = await res.json();
   return Array.isArray(arr) ? arr[0] : arr;
 }
 async function sbUpdate(table, id, data) {
-  const res = await fetch(`${REST}/${table}?id=eq.${id}`, {
+  const res = await withTokenRefresh(()=>fetch(`${REST}/${table}?id=eq.${id}`, {
     method:'PATCH', headers:{...H,'Prefer':'return=minimal'}, body:JSON.stringify(data)
-  });
+  }));
   if (!res.ok) throw new Error(await res.text());
 }
 async function sbDelete(table, id) {
-  const res = await fetch(`${REST}/${table}?id=eq.${id}`, { method:'DELETE', headers:H });
+  const res = await withTokenRefresh(()=>fetch(`${REST}/${table}?id=eq.${id}`, { method:'DELETE', headers:H }));
   if (!res.ok) throw new Error(await res.text());
 }
 
@@ -1071,6 +1071,58 @@ async function saveTaskTags(tid, tagIds) {
 /* ================================================================
    AUTH API
    ================================================================ */
+/* ── Token refresh ─────────────────────────────────────────── */
+let _refreshPromise = null; // evita múltiplos refreshes simultâneos
+let _refreshTimer   = null;
+
+async function authRefreshToken(refreshToken) {
+  const res = await fetch(`${AUTH}/token?grant_type=refresh_token`, {
+    method:'POST', headers:{'apikey':KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({ refresh_token: refreshToken })
+  });
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.error_description||d.msg||'Erro ao renovar sessão');
+  return d;
+}
+
+async function refreshSession() {
+  const sess = loadSession();
+  if (!sess?.refresh_token) throw new Error('Sem refresh token salvo.');
+  const newSess = await authRefreshToken(sess.refresh_token);
+  saveSession({ access_token:newSess.access_token, refresh_token:newSess.refresh_token,
+                user_id:sess.user_id, email:sess.email });
+  setAuthToken(newSess.access_token);
+  scheduleTokenRefresh(); // reagenda o próximo refresh preventivo
+}
+
+// Agenda renovação preventiva 5 min antes de expirar (token Supabase = 1h por padrão)
+function scheduleTokenRefresh(delayMs = 55 * 60 * 1000) {
+  if (_refreshTimer) clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(async () => {
+    try { await refreshSession(); } catch(e) { /* será capturado na próxima chamada */ }
+  }, delayMs);
+}
+
+// Intercepta erro de JWT expirado, renova e retenta a chamada original
+async function withTokenRefresh(fn) {
+  let res = await fn();
+  if (res.status === 401 || res.status === 403) {
+    const txt = await res.clone().text();
+    if (txt.includes('JWT expired') || txt.includes('PGRST303') || txt.includes('invalid_token')) {
+      if (!_refreshPromise) _refreshPromise = refreshSession().finally(()=>{ _refreshPromise=null; });
+      try { await _refreshPromise; }
+      catch(e) {
+        clearSession(); setAuthToken(null);
+        toast('Sessão expirada. Faça login novamente.','err');
+        setTimeout(()=>{ currentUser=null; currentProfile=null; renderLogin(); }, 1500);
+        throw new Error('Sessão expirada.');
+      }
+      res = await fn(); // retenta com novo token
+    }
+  }
+  return res;
+}
+
 async function authSignup(nome, email, password) {
   const res = await fetch(`${AUTH}/signup`, {
     method:'POST', headers:{'apikey':KEY,'Content-Type':'application/json'},
@@ -1506,7 +1558,7 @@ async function doLogin() {
     setAuthToken(sess.access_token);
     const profile = await getProfile(sess.user.id);
     if (!profile) throw new Error('Perfil não encontrado. Contacte o administrador.');
-    saveSession({ access_token:sess.access_token, user_id:sess.user.id, email:sess.user.email });
+    saveSession({ access_token:sess.access_token, refresh_token:sess.refresh_token, user_id:sess.user.id, email:sess.user.email });
     currentUser    = sess.user;
     currentProfile = profile;
     if (!profile.aprovado) { renderPending(); return; }
@@ -1517,6 +1569,7 @@ async function doLogin() {
     await loadAll();
     await loadMyPermissions();
     applyNavPermissions();
+    scheduleTokenRefresh();
     showLoading(false);
     render();
   } catch(e) {
@@ -1567,6 +1620,7 @@ async function logout() {
   if (sess?.access_token) await authLogoutAPI(sess.access_token);
   clearSession();
   setAuthToken(null);
+  if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer=null; }
   currentUser=null; currentProfile=null;
   document.getElementById('sbUser').style.display='none';
   document.getElementById('pendingScreen').style.display='none';
@@ -2857,7 +2911,7 @@ function buildTaskGrid(pid) {
         </td>
         <td>${statusBadge(t.status)}</td>
         <td>${multiAvatar}</td>
-        <td style="font-size:12px;color:var(--g500);white-space:nowrap;text-align:center;">${t.horasRealizadas?t.horasRealizadas+'h':'—'}</td>
+        <td>${(()=>{const tgs=taskTags(t.id);return tgs.length?`<div style="display:flex;flex-wrap:wrap;gap:3px;">${tgs.map(tg=>`<span class="tag-badge" style="background:${tg.cor}">${esc(tg.nome)}</span>`).join('')}</div>`:'<span style="color:var(--g400);font-size:12px;">—</span>'})()}</td>
         <td style="font-size:12px;color:var(--g500);white-space:nowrap">${fmtDate(t.dataInicio)||'—'}</td>
         <td style="font-size:12px;white-space:nowrap;color:${late&&t.status!=='Concluído'?'var(--danger)':'var(--g500)'};font-weight:${late&&t.status!=='Concluído'?700:400}">${fmtDate(t.dataFim)||'—'}</td>
         <td>${situacao}</td>
@@ -2878,14 +2932,6 @@ function buildTaskGrid(pid) {
         ${hasFilters?`<button class="tg-filter-chip" onclick="tgClearFilters()">✕ Limpar filtros</button>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <select style="height:32px;border:1px solid ${tgFilters.tag?'var(--primary)':'var(--g200)'};
-                  border-radius:var(--r);padding:0 10px;font-size:12px;color:${tgFilters.tag?'var(--primary)':'var(--g700)'};
-                  background:${tgFilters.tag?'var(--primary-lt)':'var(--white)'};cursor:pointer;
-                  font-weight:${tgFilters.tag?700:400};"
-               onchange="tgSetFilter('tag',this.value)"
-               ${!tagOpts?'disabled':''}>
-          <option value="">🏷️ ${tagOpts?'Todas as tags':'Sem tags'}</option>${tagOpts}
-        </select>
         <button class="btn btn-secondary" onclick="openCsvImportModal(${pid})">📥 Importar CSV</button>
         <button class="btn btn-primary" onclick="openTaskModal(${pid})">＋ Nova Tarefa</button>
       </div>
@@ -2929,7 +2975,11 @@ function buildTaskGrid(pid) {
           ${th('Responsável','responsavel',`<select class="tg-filter-select ${tgFilters.responsavelId?'active':''}" onchange="tgSetFilter('responsavelId',this.value)">
             <option value="">Todos</option>${respOpts}
           </select>`)}
-          ${th('Horas','horasRealizadas')}
+          ${th('Tags','tags', tagOpts
+            ? `<select class="tg-filter-select ${tgFilters.tag?'active':''}" onchange="tgSetFilter('tag',this.value)">
+                <option value="">Todas</option>${tagOpts}
+               </select>`
+            : '<div style="height:4px;"></div>')}
           ${th('Início','dataInicio')}
           ${th('Prazo Final','dataFim')}
           ${th('Situação','',`
@@ -8325,6 +8375,7 @@ async function init() {
         await loadAll();
         await loadMyPermissions();
         applyNavPermissions();
+        scheduleTokenRefresh();
         document.getElementById('dbBadge').className='db-badge online';
         document.getElementById('dbBadge').innerHTML='<div class="db-dot"></div> Supabase';
         showLoading(false);
