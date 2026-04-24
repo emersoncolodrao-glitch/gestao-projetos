@@ -827,6 +827,8 @@ let ncStatusOpen    = false;
 let ncNomeDebounce  = null;
 let ncSortCol    = 'projeto';
 let ncSortDir    = 'asc';
+let mtSortCol    = 'prazo';   // minhas tarefas sort
+let mtSortDir    = 'asc';
 // Custos period filter
 let custosPeriodo = 'all'; // '7d' | '30d' | 'month' | 'all'
 // Indicadores panel state — padrão: ano atual, mês anterior
@@ -1831,14 +1833,46 @@ function buildMinhasTarefasPanel() {
       <button class="btn btn-secondary" onclick="setDashFilter(null)">← Voltar</button>
     </div>`;
 
-  // Ordena: atrasadas primeiro, depois por data de fim
+  // Ordena conforme coluna e direção selecionadas
+  const mtTh = (label, col) => {
+    const active = mtSortCol === col;
+    const arrow  = active ? (mtSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th style="cursor:pointer;user-select:none;white-space:nowrap;" onclick="mtSetSort('${col}')">${label}${arrow}</th>`;
+  };
   const sorted = [...allTarefas].sort((a,b) => {
-    const la = isLateTask(a), lb = isLateTask(b);
-    if (la && !lb) return -1; if (!la && lb) return 1;
-    if (a.dataFim && b.dataFim) return a.dataFim.localeCompare(b.dataFim);
-    if (a.dataFim && !b.dataFim) return -1;
-    if (!a.dataFim && b.dataFim) return 1;
-    return a.nome.localeCompare(b.nome);
+    let r = 0;
+    switch (mtSortCol) {
+      case 'projeto': {
+        const pA = byId('projetos', a.projetoId)?.nome || '';
+        const pB = byId('projetos', b.projetoId)?.nome || '';
+        r = pA.localeCompare(pB);
+        break;
+      }
+      case 'tarefa':
+        r = a.nome.localeCompare(b.nome);
+        break;
+      case 'status':
+        r = (a.status||'').localeCompare(b.status||'');
+        break;
+      case 'prazo': {
+        const la = isLateTask(a), lb = isLateTask(b);
+        if (la && !lb) { r = -1; break; }
+        if (!la && lb) { r =  1; break; }
+        if (a.dataFim && b.dataFim) { r = a.dataFim.localeCompare(b.dataFim); break; }
+        if (a.dataFim && !b.dataFim) { r = -1; break; }
+        if (!a.dataFim && b.dataFim) { r =  1; break; }
+        r = 0;
+        break;
+      }
+      case 'tags': {
+        const tA = taskTags(a.id).map(t=>t.nome).join(',');
+        const tB = taskTags(b.id).map(t=>t.nome).join(',');
+        r = tA.localeCompare(tB);
+        break;
+      }
+      default: r = 0;
+    }
+    return mtSortDir === 'asc' ? r : -r;
   });
 
   let rows = '';
@@ -1883,11 +1917,11 @@ function buildMinhasTarefasPanel() {
     </div>
     <table class="proj-table">
       <thead><tr>
-        <th>Projeto</th>
-        <th>Tarefa</th>
-        <th>Status</th>
-        <th>Prazo</th>
-        <th>Tags</th>
+        ${mtTh('Projeto','projeto')}
+        ${mtTh('Tarefa','tarefa')}
+        ${mtTh('Status','status')}
+        ${mtTh('Prazo','prazo')}
+        ${mtTh('Tags','tags')}
         <th style="text-align:right;">Ações</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -2274,6 +2308,7 @@ function sdToggleStatus(val) {
 function ncSetFilter(key, val) { ncFilters[key]=val; renderDashboard(); }
 function ncSetNome(val) { ncFilters.nome=val; clearTimeout(ncNomeDebounce); ncNomeDebounce=setTimeout(renderDashboard,350); }
 function ncSetSort(col) { ncSortDir = ncSortCol===col && ncSortDir==='asc' ? 'desc' : 'asc'; ncSortCol=col; renderDashboard(); }
+function mtSetSort(col) { mtSortDir = mtSortCol===col && mtSortDir==='asc' ? 'desc' : 'asc'; mtSortCol=col; renderDashboard(); }
 function ncClearFilters() { ncFilters={projetoId:'',status:[],responsavelId:'',tag:'',nome:''}; ncStatusOpen=false; renderDashboard(); }
 function ncToggleStatus(val) {
   const idx=ncFilters.status.indexOf(val);

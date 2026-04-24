@@ -827,6 +827,8 @@ let ncStatusOpen    = false;
 let ncNomeDebounce  = null;
 let ncSortCol    = 'projeto';
 let ncSortDir    = 'asc';
+let mtSortCol    = 'prazo';   // minhas tarefas sort
+let mtSortDir    = 'asc';
 // Custos period filter
 let custosPeriodo = 'all'; // '7d' | '30d' | 'month' | 'all'
 // Indicadores panel state — padrão: ano atual, mês anterior
@@ -1831,14 +1833,46 @@ function buildMinhasTarefasPanel() {
       <button class="btn btn-secondary" onclick="setDashFilter(null)">← Voltar</button>
     </div>`;
 
-  // Ordena: atrasadas primeiro, depois por data de fim
+  // Ordena conforme coluna e direção selecionadas
+  const mtTh = (label, col) => {
+    const active = mtSortCol === col;
+    const arrow  = active ? (mtSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th style="cursor:pointer;user-select:none;white-space:nowrap;" onclick="mtSetSort('${col}')">${label}${arrow}</th>`;
+  };
   const sorted = [...allTarefas].sort((a,b) => {
-    const la = isLateTask(a), lb = isLateTask(b);
-    if (la && !lb) return -1; if (!la && lb) return 1;
-    if (a.dataFim && b.dataFim) return a.dataFim.localeCompare(b.dataFim);
-    if (a.dataFim && !b.dataFim) return -1;
-    if (!a.dataFim && b.dataFim) return 1;
-    return a.nome.localeCompare(b.nome);
+    let r = 0;
+    switch (mtSortCol) {
+      case 'projeto': {
+        const pA = byId('projetos', a.projetoId)?.nome || '';
+        const pB = byId('projetos', b.projetoId)?.nome || '';
+        r = pA.localeCompare(pB);
+        break;
+      }
+      case 'tarefa':
+        r = a.nome.localeCompare(b.nome);
+        break;
+      case 'status':
+        r = (a.status||'').localeCompare(b.status||'');
+        break;
+      case 'prazo': {
+        const la = isLateTask(a), lb = isLateTask(b);
+        if (la && !lb) { r = -1; break; }
+        if (!la && lb) { r =  1; break; }
+        if (a.dataFim && b.dataFim) { r = a.dataFim.localeCompare(b.dataFim); break; }
+        if (a.dataFim && !b.dataFim) { r = -1; break; }
+        if (!a.dataFim && b.dataFim) { r =  1; break; }
+        r = 0;
+        break;
+      }
+      case 'tags': {
+        const tA = taskTags(a.id).map(t=>t.nome).join(',');
+        const tB = taskTags(b.id).map(t=>t.nome).join(',');
+        r = tA.localeCompare(tB);
+        break;
+      }
+      default: r = 0;
+    }
+    return mtSortDir === 'asc' ? r : -r;
   });
 
   let rows = '';
@@ -1883,11 +1917,11 @@ function buildMinhasTarefasPanel() {
     </div>
     <table class="proj-table">
       <thead><tr>
-        <th>Projeto</th>
-        <th>Tarefa</th>
-        <th>Status</th>
-        <th>Prazo</th>
-        <th>Tags</th>
+        ${mtTh('Projeto','projeto')}
+        ${mtTh('Tarefa','tarefa')}
+        ${mtTh('Status','status')}
+        ${mtTh('Prazo','prazo')}
+        ${mtTh('Tags','tags')}
         <th style="text-align:right;">Ações</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -2194,7 +2228,15 @@ function buildNaoConcluidasPanel() {
               const tcmts = db.tarefaComentarios.filter(c=>c.tarefaId===t.id&&(c.status==='Aberta'||c.status==='Em Andamento'));
               if (!tcmts.length) return '';
               const col = tcmts.some(c=>c.status==='Aberta') ? '#dc2626' : '#d97706';
-              return `<span onclick="openTarefaComentariosModal(${t.id},${t.projetoId})" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:${col};color:#fff;font-size:10px;font-weight:700;padding:0 4px;flex-shrink:0;cursor:pointer;" title="Ver comentários em aberto">💬 ${tcmts.length}</span>`;
+              const hint = '💬 Comentários em aberto (' + tcmts.length + ')\n' +
+                '─────────────────────\n' +
+                tcmts.map(c => {
+                  const dataPart = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                  const linha1 = [dataPart, c.titulo ? c.titulo : ''].filter(Boolean).join('  ·  ');
+                  const desc = c.descricao.length > 80 ? c.descricao.slice(0,80) + '…' : c.descricao;
+                  return (linha1 ? linha1 + '\n' : '') + desc;
+                }).join('\n─────────────────────\n');
+              return `<span onclick="openTarefaComentariosModal(${t.id},${t.projetoId},'nc')" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:${col};color:#fff;font-size:10px;font-weight:700;padding:0 4px;flex-shrink:0;cursor:pointer;" title="${hint.replace(/"/g,'&quot;')}">💬 ${tcmts.length}</span>`;
             })()}
           </div>
           ${t.descricao?`<div style="font-size:11px;color:var(--g400);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${esc(t.descricao)}</div>`:''}
@@ -2240,7 +2282,7 @@ function buildNaoConcluidasPanel() {
         <thead><tr>
           ${th('Projeto','projeto',`<select class="tg-filter-select ${ncFilters.projetoId?'active':''}" onchange="ncSetFilter('projetoId',this.value)">
             <option value="">Todos</option>${projOpts}</select>`)}
-          ${th('Tarefa','tarefa',`<input class="tg-filter-input ${ncFilters.nome?'active':''}" placeholder="Buscar..." oninput="ncSetNome(this.value)" value="${esc(ncFilters.nome||'')}">`)}
+          ${th('Tarefa','tarefa',`<input class="tg-filter-input ${ncFilters.nome?'active':''}" placeholder="Buscar... (Enter para pesquisar)" onkeydown="if(event.key==='Enter')ncSetNome(this.value)" onblur="ncSetNome(this.value)" value="${esc(ncFilters.nome||'')}">`)}
           ${th('Status','status', statusFilter)}
           ${th('Responsável','responsavel',`<select class="tg-filter-select ${ncFilters.responsavelId?'active':''}" onchange="ncSetFilter('responsavelId',this.value)">
             <option value="">Todos</option>${respOpts}</select>`)}
@@ -2272,8 +2314,9 @@ function sdToggleStatus(val) {
   sdStatusOpen=true; renderDashboard();
 }
 function ncSetFilter(key, val) { ncFilters[key]=val; renderDashboard(); }
-function ncSetNome(val) { ncFilters.nome=val; clearTimeout(ncNomeDebounce); ncNomeDebounce=setTimeout(renderDashboard,350); }
+function ncSetNome(val) { ncFilters.nome=val; renderDashboard(); }
 function ncSetSort(col) { ncSortDir = ncSortCol===col && ncSortDir==='asc' ? 'desc' : 'asc'; ncSortCol=col; renderDashboard(); }
+function mtSetSort(col) { mtSortDir = mtSortCol===col && mtSortDir==='asc' ? 'desc' : 'asc'; mtSortCol=col; renderDashboard(); }
 function ncClearFilters() { ncFilters={projetoId:'',status:[],responsavelId:'',tag:'',nome:''}; ncStatusOpen=false; renderDashboard(); }
 function ncToggleStatus(val) {
   const idx=ncFilters.status.indexOf(val);
@@ -2680,12 +2723,22 @@ function buildKanban(pid) {
               const tcmts  = db.tarefaComentarios.filter(c=>c.tarefaId===t.id);
               const abertas = tcmts.filter(c=>c.status==='Aberta');
               const andando = tcmts.filter(c=>c.status==='Em Andamento');
-              const n = abertas.length + andando.length;
+              const ativos  = [...abertas, ...andando];
+              const n = ativos.length;
               const badgeCol = abertas.length ? '#dc2626' : '#d97706';
               const badge = n > 0
                 ? `<span style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:${badgeCol};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;line-height:1;">${n}</span>`
                 : '';
-              return `<button class="icon-btn" style="width:26px;height:26px;font-size:12px;position:relative;" onclick="event.stopPropagation();openTarefaComentariosModal(${t.id},${pid})" title="Comentários">💬${badge}</button>`;
+              const hint = n > 0
+                ? ('💬 Comentários em aberto (' + n + ')\n─────────────────────\n' +
+                   ativos.map(c => {
+                     const dp = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                     const l1 = [dp, c.titulo||''].filter(Boolean).join('  ·  ');
+                     const desc = c.descricao.length > 200 ? c.descricao.slice(0,200)+'…' : c.descricao;
+                     return (l1 ? l1+'\n' : '') + desc;
+                   }).join('\n─────────────────────\n')).replace(/"/g,'&quot;')
+                : 'Comentários';
+              return `<button class="icon-btn" style="width:26px;height:26px;font-size:12px;position:relative;" onclick="event.stopPropagation();openTarefaComentariosModal(${t.id},${pid})" title="${hint}">💬${badge}</button>`;
             })()}
             <button class="icon-btn" style="width:26px;height:26px;font-size:12px;" onclick="openTaskModal(${pid},${t.id})">✏️</button>
             <button class="icon-btn del" style="width:26px;height:26px;font-size:12px;" onclick="confirmDelete('tarefas',${t.id},'${esc(t.nome)}')">🗑️</button>
@@ -2930,6 +2983,19 @@ function buildTaskGrid(pid) {
         <td style="font-size:12px;white-space:nowrap;color:${late&&t.status!=='Concluído'?'var(--danger)':'var(--g500)'};font-weight:${late&&t.status!=='Concluído'?700:400}">${fmtDate(t.dataFim)||'—'}</td>
         <td>${situacao}</td>
         <td style="white-space:nowrap;text-align:right">
+          ${(()=>{
+            const ativos = db.tarefaComentarios.filter(c=>c.tarefaId===t.id&&(c.status==='Aberta'||c.status==='Em Andamento'));
+            if (!ativos.length) return '';
+            const col = ativos.some(c=>c.status==='Aberta') ? '#dc2626' : '#d97706';
+            const hint = ('💬 Comentários em aberto (' + ativos.length + ')\n─────────────────────\n' +
+              ativos.map(c => {
+                const dp = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                const l1 = [dp, c.titulo||''].filter(Boolean).join('  ·  ');
+                const desc = c.descricao.length > 200 ? c.descricao.slice(0,200)+'…' : c.descricao;
+                return (l1 ? l1+'\n' : '') + desc;
+              }).join('\n─────────────────────\n')).replace(/"/g,'&quot;');
+            return `<button class="icon-btn" onclick="openTarefaComentariosModal(${t.id},${pid})" title="${hint}" style="position:relative;">💬<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;border-radius:7px;background:${col};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;line-height:1;">${ativos.length}</span></button>`;
+          })()}
           <button class="icon-btn" onclick="openTaskModal(${pid},${t.id})" title="Editar">✏️</button>
           <button class="icon-btn del" onclick="confirmDelete('tarefas',${t.id},'${esc(t.nome)}')" title="Excluir">🗑️</button>
         </td>
@@ -3869,7 +3935,16 @@ function buildIndTable(indId, ano, unidade) {
           const badge     = n > 0
             ? `<span style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:${badgeCol};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;line-height:1;">${n}</span>`
             : '';
-          return `<button class="icon-btn" style="width:26px;height:26px;font-size:13px;position:relative;" onclick="openComentariosModal(${indId},${mes},${ano})" title="Comentários">💬${badge}</button>`;
+          const hint = n > 0
+            ? ('💬 Comentários (' + n + ')\n─────────────────────\n' +
+               cmts.map(c => {
+                 const dp = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                 const l1 = [dp, c.titulo||''].filter(Boolean).join('  ·  ');
+                 const desc = c.descricao.length > 200 ? c.descricao.slice(0,200)+'…' : c.descricao;
+                 return (l1 ? l1+'\n' : '') + desc;
+               }).join('\n─────────────────────\n')).replace(/"/g,'&quot;')
+            : 'Comentários';
+          return `<button class="icon-btn" style="width:26px;height:26px;font-size:13px;position:relative;" onclick="openComentariosModal(${indId},${mes},${ano})" title="${hint}">💬${badge}</button>`;
         })()}
       </td>
     </tr>`;
@@ -7125,7 +7200,9 @@ function closeModal() {
   ov.classList.remove('on');
   setTimeout(()=>{document.getElementById('modalRoot').innerHTML='';},200);
 }
-document.addEventListener('click',e=>{if(e.target.id==='ov')closeModal();});
+let _ovMouseDownTarget = null;
+document.addEventListener('mousedown', e=>{ _ovMouseDownTarget = e.target; });
+document.addEventListener('click', e=>{ if(e.target.id==='ov' && _ovMouseDownTarget && _ovMouseDownTarget.id==='ov') closeModal(); });
 
 /* ---- Modal drag-to-move ---- */
 let _modalDrag = null;
@@ -8053,9 +8130,10 @@ async function deleteComentario(comentarioId, indId, mes, ano) {
 /* ================================================================
    COMENTÁRIOS DE TAREFA
    ================================================================ */
-function openTarefaComentariosModal(tarefaId, pid) {
+function openTarefaComentariosModal(tarefaId, pid, origem='projeto') {
   const tarefa  = db.tarefas.find(t => t.id === tarefaId);
   const cmts    = db.tarefaComentarios.filter(c => c.tarefaId === tarefaId);
+  const onClose = origem === 'nc' ? 'renderDashboard()' : `renderProject(${pid})`;
 
   const statusCfg = {
     'Aberta':       { bg:'#fef2f2', col:'#dc2626', border:'#fca5a5' },
@@ -8067,7 +8145,7 @@ function openTarefaComentariosModal(tarefaId, pid) {
     const c = statusCfg[s] || { bg:'var(--g100)', col:'var(--g600)', border:'var(--g200)' };
     const opts = ['Aberta','Em Andamento','Concluída','Comentário']
       .map(v => `<option value="${v}" ${v===s?'selected':''}>${v}</option>`).join('');
-    return `<select onchange="changeTarefaComentarioStatus(${cId},this.value,${tarefaId},${pid})"
+    return `<select onchange="changeTarefaComentarioStatus(${cId},this.value,${tarefaId},${pid},'${origem}')"
       style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:20px;
              background:${c.bg};color:${c.col};border:1px solid ${c.border};
              cursor:pointer;outline:none;">${opts}</select>`;
@@ -8084,9 +8162,9 @@ function openTarefaComentariosModal(tarefaId, pid) {
           </div>
           <div style="display:flex;gap:4px;">
             <button class="icon-btn" style="width:20px;height:20px;font-size:11px;color:#E8501A;"
-              onclick="editTarefaComentario(${c.id},${tarefaId},${pid})" title="Editar">✏️</button>
+              onclick="editTarefaComentario(${c.id},${tarefaId},${pid},'${origem}')" title="Editar">✏️</button>
             <button class="icon-btn" style="width:20px;height:20px;font-size:11px;color:var(--danger);"
-              onclick="deleteTarefaComentario(${c.id},${tarefaId},${pid})" title="Excluir">🗑️</button>
+              onclick="deleteTarefaComentario(${c.id},${tarefaId},${pid},'${origem}')" title="Excluir">🗑️</button>
           </div>
         </div>
         ${c.titulo ? `<div style="font-size:12px;font-weight:700;color:var(--g700);margin-bottom:4px;">📌 ${esc(c.titulo)}</div>` : ''}
@@ -8100,7 +8178,7 @@ function openTarefaComentariosModal(tarefaId, pid) {
   openModal(`
   <div class="modal-head">
     <div class="modal-title">💬 Comentários — ${esc(tarefa?.nome||'Tarefa')}</div>
-    <button class="modal-x" onclick="closeModal();renderProject(${pid})">✕</button>
+    <button class="modal-x" onclick="closeModal();${onClose}">✕</button>
   </div>
   <div class="modal-body" style="max-height:65vh;overflow-y:auto;">
     ${listaHtml.length ? `<div style="margin-bottom:14px;">${listaHtml}</div>` : ''}
@@ -8120,14 +8198,14 @@ function openTarefaComentariosModal(tarefaId, pid) {
     </div>
   </div>
   <div class="modal-foot">
-    <button class="btn btn-secondary" onclick="closeModal();renderProject(${pid})">Fechar</button>
-    <button class="btn btn-primary" id="btnSvTCmt" onclick="saveTarefaComentario(${tarefaId},${pid})">➕ Adicionar</button>
+    <button class="btn btn-secondary" onclick="closeModal();${onClose}">Fechar</button>
+    <button class="btn btn-primary" id="btnSvTCmt" onclick="saveTarefaComentario(${tarefaId},${pid},'${origem}')">➕ Adicionar</button>
   </div>`, '560px');
 
   setTimeout(() => document.getElementById('ftc_titulo')?.focus(), 100);
 }
 
-async function saveTarefaComentario(tarefaId, pid) {
+async function saveTarefaComentario(tarefaId, pid, origem='projeto') {
   const titulo = document.getElementById('ftc_titulo')?.value.trim();
   const data   = document.getElementById('ftc_data')?.value.trim();
   const status = document.getElementById('ftc_status')?.value;
@@ -8149,36 +8227,36 @@ async function saveTarefaComentario(tarefaId, pid) {
     await reloadTable('tarefaComentarios');
     toast('Comentário adicionado!');
     closeModal();
-    renderProject(pid);
+    if (origem === 'nc') renderDashboard(); else renderProject(pid);
   } catch(e) {
     toast('Erro: ' + e.message, 'err');
     btn.disabled = false; btn.textContent = '➕ Adicionar';
   }
 }
 
-async function deleteTarefaComentario(comentarioId, tarefaId, pid) {
+async function deleteTarefaComentario(comentarioId, tarefaId, pid, origem='projeto') {
   if (!confirm('Excluir este comentário?')) return;
   try {
     await sbDelete('tarefa_comentarios', comentarioId);
     await reloadTable('tarefaComentarios');
     toast('Comentário excluído.');
-    openTarefaComentariosModal(tarefaId, pid);
+    openTarefaComentariosModal(tarefaId, pid, origem);
   } catch(e) {
     toast('Erro: ' + e.message, 'err');
   }
 }
 
-async function changeTarefaComentarioStatus(comentarioId, novoStatus, tarefaId, pid) {
+async function changeTarefaComentarioStatus(comentarioId, novoStatus, tarefaId, pid, origem='projeto') {
   try {
     await sbUpdate('tarefa_comentarios', comentarioId, { status: novoStatus });
     await reloadTable('tarefaComentarios');
-    openTarefaComentariosModal(tarefaId, pid);
+    openTarefaComentariosModal(tarefaId, pid, origem);
   } catch(e) {
     toast('Erro ao alterar status: ' + e.message, 'err');
   }
 }
 
-function editTarefaComentario(comentarioId, tarefaId, pid) {
+function editTarefaComentario(comentarioId, tarefaId, pid, origem='projeto') {
   const c = db.tarefaComentarios.find(x => x.id === comentarioId);
   if (!c) return;
   const sOpts = ['Aberta','Em Andamento','Concluída','Comentário']
@@ -8186,7 +8264,7 @@ function editTarefaComentario(comentarioId, tarefaId, pid) {
   openModal(`
   <div class="modal-head">
     <div class="modal-title">✏️ Editar Comentário</div>
-    <button class="modal-x" onclick="openTarefaComentariosModal(${tarefaId},${pid})">✕</button>
+    <button class="modal-x" onclick="openTarefaComentariosModal(${tarefaId},${pid},'${origem}')">✕</button>
   </div>
   <div class="modal-body">
     <div class="fg"><label class="lbl">Título</label>
@@ -8202,13 +8280,13 @@ function editTarefaComentario(comentarioId, tarefaId, pid) {
         style="resize:vertical;min-height:100px;font-family:inherit;line-height:1.55;">${esc(c.descricao)}</textarea></div>
   </div>
   <div class="modal-foot">
-    <button class="btn btn-secondary" onclick="openTarefaComentariosModal(${tarefaId},${pid})">Cancelar</button>
-    <button class="btn btn-primary" id="btnSvEditTCmt" onclick="saveEditTarefaComentario(${comentarioId},${tarefaId},${pid})">Salvar Alterações</button>
+    <button class="btn btn-secondary" onclick="openTarefaComentariosModal(${tarefaId},${pid},'${origem}')">Cancelar</button>
+    <button class="btn btn-primary" id="btnSvEditTCmt" onclick="saveEditTarefaComentario(${comentarioId},${tarefaId},${pid},'${origem}')">Salvar Alterações</button>
   </div>`, '520px');
   setTimeout(() => document.getElementById('fetc_titulo')?.focus(), 100);
 }
 
-async function saveEditTarefaComentario(comentarioId, tarefaId, pid) {
+async function saveEditTarefaComentario(comentarioId, tarefaId, pid, origem='projeto') {
   const titulo = document.getElementById('fetc_titulo')?.value.trim();
   const data   = document.getElementById('fetc_data')?.value.trim();
   const status = document.getElementById('fetc_status')?.value;
@@ -8222,7 +8300,7 @@ async function saveEditTarefaComentario(comentarioId, tarefaId, pid) {
     });
     await reloadTable('tarefaComentarios');
     toast('Comentário atualizado!');
-    openTarefaComentariosModal(tarefaId, pid);
+    openTarefaComentariosModal(tarefaId, pid, origem);
   } catch(e) {
     toast('Erro: ' + e.message, 'err');
     btn.disabled = false; btn.textContent = 'Salvar Alterações';
