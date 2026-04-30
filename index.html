@@ -1467,7 +1467,6 @@ function renderLogin(errMsg='') {
           <span class="auth-link" onclick="renderForgot()">Esqueci minha senha</span>
         </div>
       </div>
-      <div class="auth-foot">Não tem conta? <span class="auth-link" onclick="renderRegister()">Criar conta</span></div>
     </div>
   </div>`);
   setTimeout(()=>document.getElementById('li_email')?.focus(),100);
@@ -2228,7 +2227,15 @@ function buildNaoConcluidasPanel() {
               const tcmts = db.tarefaComentarios.filter(c=>c.tarefaId===t.id&&(c.status==='Aberta'||c.status==='Em Andamento'));
               if (!tcmts.length) return '';
               const col = tcmts.some(c=>c.status==='Aberta') ? '#dc2626' : '#d97706';
-              return `<span onclick="openTarefaComentariosModal(${t.id},${t.projetoId})" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:${col};color:#fff;font-size:10px;font-weight:700;padding:0 4px;flex-shrink:0;cursor:pointer;" title="Ver comentários em aberto">💬 ${tcmts.length}</span>`;
+              const hint = '💬 Comentários em aberto (' + tcmts.length + ')\n' +
+                '─────────────────────\n' +
+                tcmts.map(c => {
+                  const dataPart = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                  const linha1 = [dataPart, c.titulo ? c.titulo : ''].filter(Boolean).join('  ·  ');
+                  const desc = c.descricao.length > 80 ? c.descricao.slice(0,80) + '…' : c.descricao;
+                  return (linha1 ? linha1 + '\n' : '') + desc;
+                }).join('\n─────────────────────\n');
+              return `<span onclick="openTarefaComentariosModal(${t.id},${t.projetoId},'nc')" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:${col};color:#fff;font-size:10px;font-weight:700;padding:0 4px;flex-shrink:0;cursor:pointer;" title="${hint.replace(/"/g,'&quot;')}">💬 ${tcmts.length}</span>`;
             })()}
           </div>
           ${t.descricao?`<div style="font-size:11px;color:var(--g400);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${esc(t.descricao)}</div>`:''}
@@ -2274,7 +2281,7 @@ function buildNaoConcluidasPanel() {
         <thead><tr>
           ${th('Projeto','projeto',`<select class="tg-filter-select ${ncFilters.projetoId?'active':''}" onchange="ncSetFilter('projetoId',this.value)">
             <option value="">Todos</option>${projOpts}</select>`)}
-          ${th('Tarefa','tarefa',`<input class="tg-filter-input ${ncFilters.nome?'active':''}" placeholder="Buscar..." oninput="ncSetNome(this.value)" value="${esc(ncFilters.nome||'')}">`)}
+          ${th('Tarefa','tarefa',`<input id="ncNomeInput" class="tg-filter-input ${ncFilters.nome?'active':''}" placeholder="Buscar..." oninput="ncDebouncedNome(this.value)" value="${esc(ncFilters.nome||'')}">`)}
           ${th('Status','status', statusFilter)}
           ${th('Responsável','responsavel',`<select class="tg-filter-select ${ncFilters.responsavelId?'active':''}" onchange="ncSetFilter('responsavelId',this.value)">
             <option value="">Todos</option>${respOpts}</select>`)}
@@ -2306,7 +2313,8 @@ function sdToggleStatus(val) {
   sdStatusOpen=true; renderDashboard();
 }
 function ncSetFilter(key, val) { ncFilters[key]=val; renderDashboard(); }
-function ncSetNome(val) { ncFilters.nome=val; clearTimeout(ncNomeDebounce); ncNomeDebounce=setTimeout(renderDashboard,350); }
+function ncSetNome(val) { ncFilters.nome=val; renderDashboard(); requestAnimationFrame(()=>{ const el=document.getElementById('ncNomeInput'); if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);} }); }
+function ncDebouncedNome(val) { clearTimeout(ncNomeDebounce); ncNomeDebounce=setTimeout(()=>ncSetNome(val),350); }
 function ncSetSort(col) { ncSortDir = ncSortCol===col && ncSortDir==='asc' ? 'desc' : 'asc'; ncSortCol=col; renderDashboard(); }
 function mtSetSort(col) { mtSortDir = mtSortCol===col && mtSortDir==='asc' ? 'desc' : 'asc'; mtSortCol=col; renderDashboard(); }
 function ncClearFilters() { ncFilters={projetoId:'',status:[],responsavelId:'',tag:'',nome:''}; ncStatusOpen=false; renderDashboard(); }
@@ -2715,12 +2723,22 @@ function buildKanban(pid) {
               const tcmts  = db.tarefaComentarios.filter(c=>c.tarefaId===t.id);
               const abertas = tcmts.filter(c=>c.status==='Aberta');
               const andando = tcmts.filter(c=>c.status==='Em Andamento');
-              const n = abertas.length + andando.length;
+              const ativos  = [...abertas, ...andando];
+              const n = ativos.length;
               const badgeCol = abertas.length ? '#dc2626' : '#d97706';
               const badge = n > 0
                 ? `<span style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:${badgeCol};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;line-height:1;">${n}</span>`
                 : '';
-              return `<button class="icon-btn" style="width:26px;height:26px;font-size:12px;position:relative;" onclick="event.stopPropagation();openTarefaComentariosModal(${t.id},${pid})" title="Comentários">💬${badge}</button>`;
+              const hint = n > 0
+                ? ('💬 Comentários em aberto (' + n + ')\n─────────────────────\n' +
+                   ativos.map(c => {
+                     const dp = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                     const l1 = [dp, c.titulo||''].filter(Boolean).join('  ·  ');
+                     const desc = c.descricao.length > 200 ? c.descricao.slice(0,200)+'…' : c.descricao;
+                     return (l1 ? l1+'\n' : '') + desc;
+                   }).join('\n─────────────────────\n')).replace(/"/g,'&quot;')
+                : 'Comentários';
+              return `<button class="icon-btn" style="width:26px;height:26px;font-size:12px;position:relative;" onclick="event.stopPropagation();openTarefaComentariosModal(${t.id},${pid})" title="${hint}">💬${badge}</button>`;
             })()}
             <button class="icon-btn" style="width:26px;height:26px;font-size:12px;" onclick="openTaskModal(${pid},${t.id})">✏️</button>
             <button class="icon-btn del" style="width:26px;height:26px;font-size:12px;" onclick="confirmDelete('tarefas',${t.id},'${esc(t.nome)}')">🗑️</button>
@@ -2965,6 +2983,19 @@ function buildTaskGrid(pid) {
         <td style="font-size:12px;white-space:nowrap;color:${late&&t.status!=='Concluído'?'var(--danger)':'var(--g500)'};font-weight:${late&&t.status!=='Concluído'?700:400}">${fmtDate(t.dataFim)||'—'}</td>
         <td>${situacao}</td>
         <td style="white-space:nowrap;text-align:right">
+          ${(()=>{
+            const ativos = db.tarefaComentarios.filter(c=>c.tarefaId===t.id&&(c.status==='Aberta'||c.status==='Em Andamento'));
+            if (!ativos.length) return '';
+            const col = ativos.some(c=>c.status==='Aberta') ? '#dc2626' : '#d97706';
+            const hint = ('💬 Comentários em aberto (' + ativos.length + ')\n─────────────────────\n' +
+              ativos.map(c => {
+                const dp = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                const l1 = [dp, c.titulo||''].filter(Boolean).join('  ·  ');
+                const desc = c.descricao.length > 200 ? c.descricao.slice(0,200)+'…' : c.descricao;
+                return (l1 ? l1+'\n' : '') + desc;
+              }).join('\n─────────────────────\n')).replace(/"/g,'&quot;');
+            return `<button class="icon-btn" onclick="openTarefaComentariosModal(${t.id},${pid})" title="${hint}" style="position:relative;">💬<span style="position:absolute;top:-3px;right:-3px;min-width:13px;height:13px;border-radius:7px;background:${col};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;line-height:1;">${ativos.length}</span></button>`;
+          })()}
           <button class="icon-btn" onclick="openTaskModal(${pid},${t.id})" title="Editar">✏️</button>
           <button class="icon-btn del" onclick="confirmDelete('tarefas',${t.id},'${esc(t.nome)}')" title="Excluir">🗑️</button>
         </td>
@@ -2981,6 +3012,7 @@ function buildTaskGrid(pid) {
         ${hasFilters?`<button class="tg-filter-chip" onclick="tgClearFilters()">✕ Limpar filtros</button>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-secondary" onclick="exportTasksToExcel(${pid})">📤 Exportar Excel</button>
         <button class="btn btn-secondary" onclick="openCsvImportModal(${pid})">📥 Importar CSV</button>
         <button class="btn btn-primary" onclick="openTaskModal(${pid})">＋ Nova Tarefa</button>
       </div>
@@ -3069,6 +3101,92 @@ function buildTaskGrid(pid) {
       </table>
     </div>
   </div>`;
+}
+
+/* ── Exportar tarefas para Excel (.xlsx) ────────────────── */
+async function exportTasksToExcel(pid) {
+  // Carrega SheetJS dinamicamente se ainda não estiver disponível
+  if (typeof XLSX === 'undefined') {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Falha ao carregar biblioteca de exportação'));
+      document.head.appendChild(s);
+    });
+  }
+
+  const proj = byId('projetos', pid);
+  let tasks = db.tarefas.filter(t => t.projetoId === +pid);
+
+  // Aplica os mesmos filtros ativos na lista
+  if (tarefaTextFiltro)        tasks = tasks.filter(t => t.nome.toLowerCase().includes(tarefaTextFiltro.toLowerCase()));
+  if (tgFilters.nome)          tasks = tasks.filter(t => t.nome.toLowerCase().includes(tgFilters.nome.toLowerCase()));
+  if (tgFilters.status.length) tasks = tasks.filter(t => tgFilters.status.includes(t.status));
+  if (tgFilters.responsavelId) tasks = tasks.filter(t => taskResponsaveis(t.id).some(r => String(r.id) === tgFilters.responsavelId));
+  if (tgFilters.tag)           tasks = tasks.filter(t => taskTags(t.id).some(tg => String(tg.id) === tgFilters.tag));
+  if (tgFilters.prazo.length)  tasks = tasks.filter(t => {
+    const sit = t.status === 'Concluído' ? 'done' : isLateTask(t) ? 'late' : 'ontime';
+    return tgFilters.prazo.includes(sit);
+  });
+
+  // Aplica o mesmo sort ativo
+  tasks = [...tasks].sort((a, b) => {
+    let va, vb;
+    switch (tgSortCol) {
+      case 'nome':        va = a.nome.toLowerCase(); vb = b.nome.toLowerCase(); break;
+      case 'status':      va = a.status; vb = b.status; break;
+      case 'responsavel': va = (byId('responsaveis', a.responsavelId)?.nome || '').toLowerCase();
+                          vb = (byId('responsaveis', b.responsavelId)?.nome || '').toLowerCase(); break;
+      case 'dataInicio':  va = a.dataInicio || ''; vb = b.dataInicio || ''; break;
+      case 'dataFim':     va = a.dataFim || '';    vb = b.dataFim || ''; break;
+      case 'tags':        va = taskTags(a.id).map(t => t.nome).join();
+                          vb = taskTags(b.id).map(t => t.nome).join(); break;
+      default:            va = a.nome.toLowerCase(); vb = b.nome.toLowerCase();
+    }
+    if (va < vb) return tgSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return tgSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Monta os dados para a planilha
+  const xlRows = tasks.map(t => {
+    const resps = taskResponsaveis(t.id);
+    const tgs   = taskTags(t.id);
+    const situacao = t.status === 'Concluído' ? 'Encerrado' : isLateTask(t) ? 'Atrasado' : 'No prazo';
+    return {
+      'Tarefa':       t.nome,
+      'Descrição':    t.descricao || '',
+      'Status':       t.status,
+      'Responsáveis': resps.map(r => r.nome).join(', ') || '—',
+      'Tags':         tgs.map(tg => tg.nome).join(', ') || '—',
+      'Início':       t.dataInicio ? new Date(t.dataInicio + 'T12:00:00') : '',
+      'Prazo Final':  t.dataFim ? new Date(t.dataFim + 'T12:00:00') : '',
+      'Situação':     situacao
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(xlRows);
+
+  // Larguras das colunas
+  ws['!cols'] = [
+    { wch: 40 }, { wch: 50 }, { wch: 14 }, { wch: 30 },
+    { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+  ];
+
+  // Formata colunas de data
+  for (let r = 1; r <= xlRows.length; r++) {
+    const cI = ws[XLSX.utils.encode_cell({ r, c: 5 })];
+    const cP = ws[XLSX.utils.encode_cell({ r, c: 6 })];
+    if (cI && cI.t === 'd') cI.z = 'dd/mm/yyyy';
+    if (cP && cP.t === 'd') cP.z = 'dd/mm/yyyy';
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Tarefas');
+
+  const nomeArquivo = `${(proj?.nome || 'Projeto').replace(/[^a-zA-Z0-9À-ú ]/g, '')}_Tarefas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, nomeArquivo);
 }
 
 // is a single task late?
@@ -3904,7 +4022,16 @@ function buildIndTable(indId, ano, unidade) {
           const badge     = n > 0
             ? `<span style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:${badgeCol};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;line-height:1;">${n}</span>`
             : '';
-          return `<button class="icon-btn" style="width:26px;height:26px;font-size:13px;position:relative;" onclick="openComentariosModal(${indId},${mes},${ano})" title="Comentários">💬${badge}</button>`;
+          const hint = n > 0
+            ? ('💬 Comentários (' + n + ')\n─────────────────────\n' +
+               cmts.map(c => {
+                 const dp = c.data ? '📅 ' + new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR') : '';
+                 const l1 = [dp, c.titulo||''].filter(Boolean).join('  ·  ');
+                 const desc = c.descricao.length > 200 ? c.descricao.slice(0,200)+'…' : c.descricao;
+                 return (l1 ? l1+'\n' : '') + desc;
+               }).join('\n─────────────────────\n')).replace(/"/g,'&quot;')
+            : 'Comentários';
+          return `<button class="icon-btn" style="width:26px;height:26px;font-size:13px;position:relative;" onclick="openComentariosModal(${indId},${mes},${ano})" title="${hint}">💬${badge}</button>`;
         })()}
       </td>
     </tr>`;
@@ -7160,7 +7287,9 @@ function closeModal() {
   ov.classList.remove('on');
   setTimeout(()=>{document.getElementById('modalRoot').innerHTML='';},200);
 }
-document.addEventListener('click',e=>{if(e.target.id==='ov')closeModal();});
+let _ovMouseDownTarget = null;
+document.addEventListener('mousedown', e=>{ _ovMouseDownTarget = e.target; });
+document.addEventListener('click', e=>{ if(e.target.id==='ov' && _ovMouseDownTarget && _ovMouseDownTarget.id==='ov') closeModal(); });
 
 /* ---- Modal drag-to-move ---- */
 let _modalDrag = null;
@@ -8088,9 +8217,10 @@ async function deleteComentario(comentarioId, indId, mes, ano) {
 /* ================================================================
    COMENTÁRIOS DE TAREFA
    ================================================================ */
-function openTarefaComentariosModal(tarefaId, pid) {
+function openTarefaComentariosModal(tarefaId, pid, origem='projeto') {
   const tarefa  = db.tarefas.find(t => t.id === tarefaId);
   const cmts    = db.tarefaComentarios.filter(c => c.tarefaId === tarefaId);
+  const onClose = origem === 'nc' ? 'renderDashboard()' : `renderProject(${pid})`;
 
   const statusCfg = {
     'Aberta':       { bg:'#fef2f2', col:'#dc2626', border:'#fca5a5' },
@@ -8102,7 +8232,7 @@ function openTarefaComentariosModal(tarefaId, pid) {
     const c = statusCfg[s] || { bg:'var(--g100)', col:'var(--g600)', border:'var(--g200)' };
     const opts = ['Aberta','Em Andamento','Concluída','Comentário']
       .map(v => `<option value="${v}" ${v===s?'selected':''}>${v}</option>`).join('');
-    return `<select onchange="changeTarefaComentarioStatus(${cId},this.value,${tarefaId},${pid})"
+    return `<select onchange="changeTarefaComentarioStatus(${cId},this.value,${tarefaId},${pid},'${origem}')"
       style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:20px;
              background:${c.bg};color:${c.col};border:1px solid ${c.border};
              cursor:pointer;outline:none;">${opts}</select>`;
@@ -8119,9 +8249,9 @@ function openTarefaComentariosModal(tarefaId, pid) {
           </div>
           <div style="display:flex;gap:4px;">
             <button class="icon-btn" style="width:20px;height:20px;font-size:11px;color:#E8501A;"
-              onclick="editTarefaComentario(${c.id},${tarefaId},${pid})" title="Editar">✏️</button>
+              onclick="editTarefaComentario(${c.id},${tarefaId},${pid},'${origem}')" title="Editar">✏️</button>
             <button class="icon-btn" style="width:20px;height:20px;font-size:11px;color:var(--danger);"
-              onclick="deleteTarefaComentario(${c.id},${tarefaId},${pid})" title="Excluir">🗑️</button>
+              onclick="deleteTarefaComentario(${c.id},${tarefaId},${pid},'${origem}')" title="Excluir">🗑️</button>
           </div>
         </div>
         ${c.titulo ? `<div style="font-size:12px;font-weight:700;color:var(--g700);margin-bottom:4px;">📌 ${esc(c.titulo)}</div>` : ''}
@@ -8135,7 +8265,7 @@ function openTarefaComentariosModal(tarefaId, pid) {
   openModal(`
   <div class="modal-head">
     <div class="modal-title">💬 Comentários — ${esc(tarefa?.nome||'Tarefa')}</div>
-    <button class="modal-x" onclick="closeModal();renderProject(${pid})">✕</button>
+    <button class="modal-x" onclick="closeModal();${onClose}">✕</button>
   </div>
   <div class="modal-body" style="max-height:65vh;overflow-y:auto;">
     ${listaHtml.length ? `<div style="margin-bottom:14px;">${listaHtml}</div>` : ''}
@@ -8155,14 +8285,14 @@ function openTarefaComentariosModal(tarefaId, pid) {
     </div>
   </div>
   <div class="modal-foot">
-    <button class="btn btn-secondary" onclick="closeModal();renderProject(${pid})">Fechar</button>
-    <button class="btn btn-primary" id="btnSvTCmt" onclick="saveTarefaComentario(${tarefaId},${pid})">➕ Adicionar</button>
+    <button class="btn btn-secondary" onclick="closeModal();${onClose}">Fechar</button>
+    <button class="btn btn-primary" id="btnSvTCmt" onclick="saveTarefaComentario(${tarefaId},${pid},'${origem}')">➕ Adicionar</button>
   </div>`, '560px');
 
   setTimeout(() => document.getElementById('ftc_titulo')?.focus(), 100);
 }
 
-async function saveTarefaComentario(tarefaId, pid) {
+async function saveTarefaComentario(tarefaId, pid, origem='projeto') {
   const titulo = document.getElementById('ftc_titulo')?.value.trim();
   const data   = document.getElementById('ftc_data')?.value.trim();
   const status = document.getElementById('ftc_status')?.value;
@@ -8184,36 +8314,36 @@ async function saveTarefaComentario(tarefaId, pid) {
     await reloadTable('tarefaComentarios');
     toast('Comentário adicionado!');
     closeModal();
-    renderProject(pid);
+    if (origem === 'nc') renderDashboard(); else renderProject(pid);
   } catch(e) {
     toast('Erro: ' + e.message, 'err');
     btn.disabled = false; btn.textContent = '➕ Adicionar';
   }
 }
 
-async function deleteTarefaComentario(comentarioId, tarefaId, pid) {
+async function deleteTarefaComentario(comentarioId, tarefaId, pid, origem='projeto') {
   if (!confirm('Excluir este comentário?')) return;
   try {
     await sbDelete('tarefa_comentarios', comentarioId);
     await reloadTable('tarefaComentarios');
     toast('Comentário excluído.');
-    openTarefaComentariosModal(tarefaId, pid);
+    openTarefaComentariosModal(tarefaId, pid, origem);
   } catch(e) {
     toast('Erro: ' + e.message, 'err');
   }
 }
 
-async function changeTarefaComentarioStatus(comentarioId, novoStatus, tarefaId, pid) {
+async function changeTarefaComentarioStatus(comentarioId, novoStatus, tarefaId, pid, origem='projeto') {
   try {
     await sbUpdate('tarefa_comentarios', comentarioId, { status: novoStatus });
     await reloadTable('tarefaComentarios');
-    openTarefaComentariosModal(tarefaId, pid);
+    openTarefaComentariosModal(tarefaId, pid, origem);
   } catch(e) {
     toast('Erro ao alterar status: ' + e.message, 'err');
   }
 }
 
-function editTarefaComentario(comentarioId, tarefaId, pid) {
+function editTarefaComentario(comentarioId, tarefaId, pid, origem='projeto') {
   const c = db.tarefaComentarios.find(x => x.id === comentarioId);
   if (!c) return;
   const sOpts = ['Aberta','Em Andamento','Concluída','Comentário']
@@ -8221,7 +8351,7 @@ function editTarefaComentario(comentarioId, tarefaId, pid) {
   openModal(`
   <div class="modal-head">
     <div class="modal-title">✏️ Editar Comentário</div>
-    <button class="modal-x" onclick="openTarefaComentariosModal(${tarefaId},${pid})">✕</button>
+    <button class="modal-x" onclick="openTarefaComentariosModal(${tarefaId},${pid},'${origem}')">✕</button>
   </div>
   <div class="modal-body">
     <div class="fg"><label class="lbl">Título</label>
@@ -8237,13 +8367,13 @@ function editTarefaComentario(comentarioId, tarefaId, pid) {
         style="resize:vertical;min-height:100px;font-family:inherit;line-height:1.55;">${esc(c.descricao)}</textarea></div>
   </div>
   <div class="modal-foot">
-    <button class="btn btn-secondary" onclick="openTarefaComentariosModal(${tarefaId},${pid})">Cancelar</button>
-    <button class="btn btn-primary" id="btnSvEditTCmt" onclick="saveEditTarefaComentario(${comentarioId},${tarefaId},${pid})">Salvar Alterações</button>
+    <button class="btn btn-secondary" onclick="openTarefaComentariosModal(${tarefaId},${pid},'${origem}')">Cancelar</button>
+    <button class="btn btn-primary" id="btnSvEditTCmt" onclick="saveEditTarefaComentario(${comentarioId},${tarefaId},${pid},'${origem}')">Salvar Alterações</button>
   </div>`, '520px');
   setTimeout(() => document.getElementById('fetc_titulo')?.focus(), 100);
 }
 
-async function saveEditTarefaComentario(comentarioId, tarefaId, pid) {
+async function saveEditTarefaComentario(comentarioId, tarefaId, pid, origem='projeto') {
   const titulo = document.getElementById('fetc_titulo')?.value.trim();
   const data   = document.getElementById('fetc_data')?.value.trim();
   const status = document.getElementById('fetc_status')?.value;
@@ -8257,7 +8387,7 @@ async function saveEditTarefaComentario(comentarioId, tarefaId, pid) {
     });
     await reloadTable('tarefaComentarios');
     toast('Comentário atualizado!');
-    openTarefaComentariosModal(tarefaId, pid);
+    openTarefaComentariosModal(tarefaId, pid, origem);
   } catch(e) {
     toast('Erro: ' + e.message, 'err');
     btn.disabled = false; btn.textContent = 'Salvar Alterações';
