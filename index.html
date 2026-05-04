@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestão Indicadores e Projetos</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23E8501A'/%3E%3Cpath d='M18 16h20a2 2 0 0 1 2 2v4H16v-4a2 2 0 0 1 2-2z' fill='%23fff' opacity='.9'/%3E%3Crect x='16' y='24' width='24' height='3' rx='1' fill='%23fff' opacity='.7'/%3E%3Crect x='16' y='30' width='20' height='3' rx='1' fill='%23fff' opacity='.5'/%3E%3Crect x='16' y='36' width='16' height='3' rx='1' fill='%23fff' opacity='.35'/%3E%3Ccircle cx='42' cy='38' r='14' fill='%23fff'/%3E%3Cpath d='M42 28v10l7 4' stroke='%23E8501A' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23E8501A'/%3E%3Cpath d='M18 16h20a2 2 0 0 1 2 2v4H16v-4a2 2 0 0 1 2-2z' fill='%23fff' opacity='.9'/%3E%3Crect x='16' y='24' width='24' height='3' rx='1' fill='%23fff' opacity='.7'/%3E%3Crect x='16' y='30' width='20' height='3' rx='1' fill='%23fff' opacity='.5'/%3E%3Crect x='16' y='36' width='16' height='3' rx='1' fill='%23fff' opacity='.35'/%3E%3Ccircle cx='42' cy='38' r='14' fill='%23fff'/%3E%3Cpath d='M42 28v10l7 4' stroke='%23E8501A' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
 <style>
 /* ===== RESET & VARIABLES ===== */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
@@ -7483,6 +7485,8 @@ function openTaskModal(pid,tid=null) {
     <button class="modal-x" onclick="closeModal()">✕</button>
   </div>
   <div class="modal-body">
+    ${t ? `<div class="fg"><label class="lbl">📁 Projeto</label>
+      <select id="f_tprojeto" class="fc">${db.projetos.filter(p=>canSee('projeto',p.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(p=>`<option value="${p.id}" ${p.id===+pid?'selected':''}>${esc(p.nome)}</option>`).join('')}</select></div>` : ''}
     <div class="fg"><label class="lbl">Nome <span class="req">*</span></label>
       <input id="f_tnome" class="fc" type="text" value="${t?.nome||''}" placeholder="Ex: Desenvolver tela de login"></div>
     <div class="fg"><label class="lbl">Descrição</label>
@@ -7698,7 +7702,9 @@ async function saveTask(pid,tid) {
   const primaryResp = selRespIds[0]||null;
   const btn=document.getElementById('btnSvTask');
   btn.disabled=true;btn.textContent='Salvando...';
-  const data=toDB.tarefa({nome,descricao:g('f_tdesc').trim(),projetoId:+pid,
+  const projSelect = document.getElementById('f_tprojeto');
+  const finalPid = projSelect ? +projSelect.value : +pid;
+  const data=toDB.tarefa({nome,descricao:g('f_tdesc').trim(),projetoId:finalPid,
     status:g('f_tstatus'),responsavelId:primaryResp,
     horasRealizadas:parseFloat(g('f_thoras'))||0,
     pctExecucao:parseInt(g('f_texecucao'))||0,
